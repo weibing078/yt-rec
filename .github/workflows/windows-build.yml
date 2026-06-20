@@ -30,3 +30,22 @@ jobs:
       # so build the app with msbuild (/restore handles NuGet).
       - name: Build YtRec.App (WinUI 3, x64)
         run: msbuild windows/YtRec.App/YtRec.App.csproj /restore /p:Configuration=Release /p:Platform=x64
+
+      # Portable, no-install build: self-contained (bundles .NET + Windows App SDK).
+      - name: Publish portable (self-contained, no-install)
+        run: msbuild windows/YtRec.App/YtRec.App.csproj /t:Publish /p:Configuration=Release /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:WindowsAppSDKSelfContained=true
+
+      - name: Zip portable build
+        shell: pwsh
+        run: |
+          $pub = Get-ChildItem -Path windows/YtRec.App/bin -Recurse -Directory -Filter publish | Select-Object -First 1
+          if (-not $pub) { throw "publish directory not found" }
+          Write-Host "publish dir: $($pub.FullName)"
+          Compress-Archive -Path "$($pub.FullName)/*" -DestinationPath YtRec-win-x64-portable.zip -Force
+          Write-Host ("zip size: {0:N1} MB" -f ((Get-Item YtRec-win-x64-portable.zip).Length / 1MB))
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YtRec-win-x64-portable
+          path: YtRec-win-x64-portable.zip
+          if-no-files-found: error
