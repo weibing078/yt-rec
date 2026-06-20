@@ -27,6 +27,9 @@ jobs:
       - name: Test YtRec.Core
         run: dotnet test windows/YtRec.Core.Tests/YtRec.Core.Tests.csproj -c Release
 
+      - name: Build YtRec.Cli (headless runner)
+        run: dotnet build windows/YtRec.Cli/YtRec.Cli.csproj -c Release
+
       # WinUI 3 PRI/AppxPackage tasks live in VS MSBuild, not the bare .NET SDK,
       # so build the app with msbuild (/restore handles NuGet).
       - name: Build YtRec.App (WinUI 3, x64)

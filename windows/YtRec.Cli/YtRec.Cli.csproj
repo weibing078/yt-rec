@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Headless smoke-test / download runner. Plain cross-platform .NET (builds & runs
+       on macOS, Linux, Windows) — drives the real YtDlpEngine end-to-end. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>YtRec.Cli</RootNamespace>
+    <AssemblyName>ytrec</AssemblyName>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\YtRec.Core\YtRec.Core.csproj" />
+  </ItemGroup>
+
+</Project>

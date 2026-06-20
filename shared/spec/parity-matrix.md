@@ -5,7 +5,8 @@ Legend: ✅ done & verified · 🟡 partial / unverified · 🚧 in progress · 
 
 | Feature | macOS | Windows | Notes |
 |---|:---:|:---:|---|
-| **Track A — download (yt-dlp)** | ✅ | 🟡 | Engine+runner 62 tests (incl. Windows CI); WinUI UI compiles on CI; GUI/runtime download test pending on Win11. |
+| **Track A — download (yt-dlp)** | ✅ | ✅ | **Runtime-verified on real Windows** (629 KB MP4 downloaded via YtRec.Cli over SSH); 62 tests green on Mac + Windows. |
+| Headless runner `YtRec.Cli` | ✅ | ✅ | cross-platform; real download verified on Mac + Windows. |
 | Main window (control center) | ✅ | 🟡 | WinUI 3 MainWindow **compiles on Windows CI** (windows-build); GUI/runtime test pending. |
 | Probe + strategy ordering | ✅ | ✅ | C# port; ProcessRunner + YtDlpEngine. |
 | 30 s polling / 6 h give-up | ✅ | ✅ | polling implemented (configurable); stops on cancel/terminal/marathon. |

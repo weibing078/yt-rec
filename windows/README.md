@@ -69,6 +69,25 @@ msbuild windows\YtRec.App\YtRec.App.csproj /t:Publish /p:Configuration=Release ^
 > WebView2 Runtime (Phase 2, for playing YouTube) is preinstalled on Win11 and most
 > Win10; bundle the fixed-version runtime only if targeting a bare machine.
 
+## Remote runtime testing from macOS (SSH + Tailscale)
+
+WinUI/native code can't run on a Mac, but you can drive a real Windows box from one:
+
+1. **Tailscale** on both machines (same tailnet) → secure connectivity anywhere.
+2. **OpenSSH Server** on Windows (`Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0`;
+   `Start-Service sshd`) + your public key in `administrators_authorized_keys`.
+3. **.NET 8 SDK** on Windows without admin: the `dotnet-install.ps1` script → `%USERPROFILE%\.dotnet`.
+4. **Ship code** without git: `COPYFILE_DISABLE=1 tar czf - --exclude='windows/*/bin' --exclude='windows/*/obj'
+   global.json windows | ssh <win> 'tar -xzf - -C yt-rec'` (the `COPYFILE_DISABLE` avoids macOS
+   `._*` files, which the C# compiler otherwise tries to compile).
+5. **Test / real download** headlessly via `YtRec.Cli`:
+   `dotnet test windows\YtRec.Core.Tests\...` and
+   `$env:YTREC_BIN_DIR=...\vendor\bin; dotnet run --project windows\YtRec.Cli -- <youtube-url> <outDir>`.
+
+This verifies the download track on real Windows. The GUI itself you eyeball locally /
+via RDP; Phase 2 capture correctness is verified the same headless way (a capture self-test
++ ffmpeg checks).
+
 ## Phase 1 vs Phase 2
 
 - **Phase 1 (this UI):** download track — paste a URL → probe → download (incl.
