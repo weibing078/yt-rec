@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Segoe Fluent Icons glyphs used below (verify on first Win11 build; swap any that render as boxes):
+     Settings E713 · Permission/Lock E72E · Paste E77F · Folder E8B7 · ArrowRight E72A
+     Download E896 · Play E768 · Stop E71A · Video E714 -->
+<Window
+    x:Class="YtRec.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:YtRec.App"
+    xmlns:muxc="using:Microsoft.UI.Xaml.Controls">
+
+    <Grid x:Name="RootGrid" RowDefinitions="Auto,*">
+
+        <!-- ── Custom title bar: brand + commands left, system caption buttons right ── -->
+        <Grid x:Name="AppTitleBar" Grid.Row="0" Height="40" Padding="12,0,0,0"
+              ColumnDefinitions="Auto,Auto,Auto,Auto,*">
+            <Border Grid.Column="0" Width="22" Height="22" CornerRadius="6"
+                    Background="{ThemeResource ControlFillColorSecondaryBrush}"
+                    BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="1"
+                    VerticalAlignment="Center">
+                <Polygon Points="0,0 8,5 0,10" Fill="{ThemeResource BrandSignalBrush}"
+                         HorizontalAlignment="Center" VerticalAlignment="Center" Margin="2,0,0,0"/>
+            </Border>
+            <TextBlock Grid.Column="1" Text="YT Rec" VerticalAlignment="Center" Margin="10,0,12,0"
+                       FontSize="13" FontWeight="SemiBold"/>
+            <Button Grid.Column="2" x:Uid="PermissionButton" Click="OnPermissions"
+                    Background="Transparent" BorderThickness="0" Width="34" Height="30" Padding="0">
+                <FontIcon Glyph="&#xE72E;" FontSize="15"/>
+            </Button>
+            <Button Grid.Column="3" x:Uid="SettingsButton" Click="OnSettings"
+                    Background="Transparent" BorderThickness="0" Width="34" Height="30" Padding="0">
+                <FontIcon Glyph="&#xE713;" FontSize="15"/>
+            </Button>
+            <Border Grid.Column="4" x:Name="DragRegion" Background="Transparent"/>
+        </Grid>
+
+        <!-- ── Body ── -->
+        <ScrollViewer Grid.Row="1" Padding="16,4,16,16" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="12" MaxWidth="520" HorizontalAlignment="Stretch">
+
+                <muxc:InfoBar Severity="Warning" IsOpen="{x:Bind Vm.HasWarning, Mode=OneWay}"
+                              IsClosable="False" Message="{x:Bind Vm.WarningText, Mode=OneWay}"/>
+
+                <!-- URL + paste + primary action -->
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                    <TextBox Grid.Column="0" x:Uid="UrlTextBox"
+                             Text="{x:Bind Vm.UrlText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                    <Button Grid.Column="1" x:Uid="PasteButton" Click="OnPaste" Width="36">
+                        <FontIcon Glyph="&#xE77F;" FontSize="15"/>
+                    </Button>
+                    <Button Grid.Column="2" x:Uid="StartButton" CornerRadius="7"
+                            Command="{x:Bind Vm.StartCommand}" IsEnabled="{x:Bind Vm.CanStart, Mode=OneWay}">
+                        <Button.Resources>
+                            <SolidColorBrush x:Key="ButtonBackground" Color="#FF2E45"/>
+                            <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FF3D52"/>
+                            <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#D5002A"/>
+                            <SolidColorBrush x:Key="ButtonForeground" Color="White"/>
+                            <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="White"/>
+                            <SolidColorBrush x:Key="ButtonForegroundPressed" Color="White"/>
+                        </Button.Resources>
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <FontIcon Glyph="&#xE896;" FontSize="14" Foreground="White"/>
+                            <TextBlock x:Uid="StartButtonText"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+
+                <!-- Clip-section (optional) -->
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock x:Uid="SectionLabel" VerticalAlignment="Center"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" FontSize="12"/>
+                    <TextBox x:Uid="SectionStartBox" Width="78" Text="{x:Bind Vm.SectionStart, Mode=TwoWay}"/>
+                    <FontIcon Glyph="&#xE72A;" FontSize="12" Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                    <TextBox x:Uid="SectionEndBox" Width="78" Text="{x:Bind Vm.SectionEnd, Mode=TwoWay}"/>
+                    <TextBlock x:Uid="SectionHint" VerticalAlignment="Center"
+                               Foreground="{ThemeResource TextFillColorTertiaryBrush}" FontSize="12"/>
+                </StackPanel>
+
+                <!-- Active job / status -->
+                <Border Visibility="{x:Bind local:XamlHelpers.Vis(Vm.HasJob), Mode=OneWay}"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        CornerRadius="9" Padding="12">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="{x:Bind Vm.JobTitle, Mode=OneWay}" FontSize="13"
+                                   FontWeight="SemiBold" TextWrapping="Wrap"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <muxc:ProgressRing IsActive="{x:Bind Vm.IsBusy, Mode=OneWay}" Width="16" Height="16"/>
+                            <TextBlock Text="{x:Bind Vm.StatusText, Mode=OneWay}" FontSize="12"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <Button x:Uid="StopButton" HorizontalAlignment="Right"
+                                Command="{x:Bind Vm.StopCommand}"
+                                Foreground="{ThemeResource BrandDangerTextBrush}">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon Glyph="&#xE71A;" FontSize="13"/>
+                                <TextBlock x:Uid="StopButtonText"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- Recent outputs -->
+                <TextBlock x:Uid="RecentHeader" FontSize="12"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                           Visibility="{x:Bind local:XamlHelpers.VisCount(Vm.RecentFiles.Count), Mode=OneWay}"/>
+                <ListView ItemsSource="{x:Bind Vm.RecentFiles}" SelectionMode="None" IsItemClickEnabled="False">
+                    <ListView.ItemTemplate>
+                        <DataTemplate x:DataType="local:RecentFile">
+                            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10" Padding="2,6">
+                                <FontIcon Grid.Column="0" Glyph="&#xE714;" FontSize="17"
+                                          Foreground="{ThemeResource BrandSignalBrush}" Width="22"/>
+                                <StackPanel Grid.Column="1" Spacing="3">
+                                    <TextBlock Text="{x:Bind FileName}" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="7">
+                                        <Border Background="{ThemeResource BrandSignalSoftBrush}" CornerRadius="10" Padding="7,1">
+                                            <TextBlock Text="{x:Bind KindLabel}" FontSize="11"
+                                                       Foreground="{ThemeResource BrandDangerTextBrush}"/>
+                                        </Border>
+                                        <TextBlock Text="{x:Bind SizeText}" FontSize="11"
+                                                   Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                                <Button Grid.Column="2" Background="Transparent" BorderThickness="0"
+                                        Click="OnPlay" Tag="{x:Bind FullPath}" Width="34" Height="30" Padding="0">
+                                    <FontIcon Glyph="&#xE768;" FontSize="15"/>
+                                </Button>
+                                <Button Grid.Column="3" Background="Transparent" BorderThickness="0"
+                                        Click="OnReveal" Tag="{x:Bind FullPath}" Width="34" Height="30" Padding="0">
+                                    <FontIcon Glyph="&#xE8B7;" FontSize="15"/>
+                                </Button>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+
+                <!-- Footer -->
+                <Grid ColumnDefinitions="Auto,*,Auto" Padding="0,4,0,0">
+                    <HyperlinkButton Grid.Column="0" x:Uid="OpenFolderLink" Click="OnOpenFolder"/>
+                    <HyperlinkButton Grid.Column="2" x:Uid="OpenLogLink" Click="OnOpenLog"/>
+                </Grid>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

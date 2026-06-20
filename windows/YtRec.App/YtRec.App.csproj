@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Unpackaged, self-contained WinUI 3 desktop app (portable, unsigned-friendly per ADR-0005).
+       Build/run on Windows 11: `dotnet build -c Release` or open YtRec.sln in Visual Studio 2022
+       (Windows App SDK / WinUI workload required). Cannot build on macOS/Linux. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RootNamespace>YtRec.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x86;x64;arm64</Platforms>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <UseWinUI>true</UseWinUI>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <!-- Run without MSIX packaging; ship as a portable folder. -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <DefaultLanguage>en-US</DefaultLanguage>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\YtRec.Core\YtRec.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PRIResource Include="Strings\**\*.resw" />
+  </ItemGroup>
+
+</Project>

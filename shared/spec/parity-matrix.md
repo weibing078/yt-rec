@@ -5,7 +5,8 @@ Legend: ✅ done & verified · 🟡 partial / unverified · 🚧 in progress · 
 
 | Feature | macOS | Windows | Notes |
 |---|:---:|:---:|---|
-| **Track A — download (yt-dlp)** | ✅ | 🟡 | Engine + runner complete & tested (57 tests); needs WinUI wiring + real Win11 run. |
+| **Track A — download (yt-dlp)** | ✅ | 🟡 | Engine+runner tested; WinUI download UI wired (MainViewModel); needs Win11 build/run. |
+| Main window (control center) | ✅ | 🟡 | WinUI 3 MainWindow written (Fluent dark, brand red); build-verify on Win11 pending. |
 | Probe + strategy ordering | ✅ | ✅ | C# port; ProcessRunner + YtDlpEngine. |
 | 30 s polling / 6 h give-up | ✅ | ✅ | polling implemented (configurable); stops on cancel/terminal/marathon. |
 | VOD section download | ✅ | ✅ | `YtDlpEngine.DownloadSectionAsync` (--download-sections), tested. |
@@ -26,6 +27,6 @@ Legend: ✅ done & verified · 🟡 partial / unverified · 🚧 in progress · 
 | System notifications | ✅ | ⬜ | |
 | Drag output → Premiere | ✅ | ⬜ | |
 | Preview/confirm player | ✅ | ⬜ | mac: AVPlayerView; win: MediaPlayerElement. |
-| Bilingual zh-TW + English | 🟡 | ⬜ | mac currently zh-TW only; add i18n both sides (ADR-0005). |
+| Bilingual zh-TW + English | 🟡 | 🟡 | win: resw en-US + zh-Hant-TW, locale-based (build-verify pending); mac still zh-TW only. |
 | True silent capture | ➖ | ➖ | deferred (virtual audio device) on both. |
 | Distribution / installer | ✅ (DMG) | ⬜ | win: GitHub Releases, unsigned (ADR-0005). |

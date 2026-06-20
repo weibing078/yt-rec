@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="xml:space" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <data name="UrlTextBox.PlaceholderText"><value>貼上 YouTube 直播／影片網址</value></data>
+  <data name="StartButtonText.Text"><value>下載</value></data>
+  <data name="StartButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name"><value>開始下載</value></data>
+  <data name="PasteButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name"><value>貼上剪貼簿網址</value></data>
+  <data name="PermissionButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name"><value>權限</value></data>
+  <data name="SettingsButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name"><value>設定</value></data>
+  <data name="SectionLabel.Text"><value>只抓某段</value></data>
+  <data name="SectionStartBox.PlaceholderText"><value>從 0:00</value></data>
+  <data name="SectionEndBox.PlaceholderText"><value>到 5:00</value></data>
+  <data name="SectionHint.Text"><value>給已結束影片</value></data>
+  <data name="StopButtonText.Text"><value>停止</value></data>
+  <data name="StopButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name"><value>停止</value></data>
+  <data name="RecentHeader.Text"><value>最近成品（可直接拖進 Premiere）</value></data>
+  <data name="OpenFolderLink.Content"><value>打開輸出資料夾</value></data>
+  <data name="OpenLogLink.Content"><value>Log</value></data>
+</root>

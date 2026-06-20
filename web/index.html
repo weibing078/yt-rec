@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YT Rec — 單獨錄下一個 YouTube 直播，不佔螢幕、不錄到其他聲音</title>
+<meta name="description" content="把單一 YouTube 直播視窗的畫面與聲音單獨錄下來——看得到、聽得到，但不佔用你的工作畫面，也不會錄到電腦其他聲音。給新聞／時事剪輯師的桌面工具，免費開源（Apache-2.0）。">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#15171C">
+
+<!-- Open Graph / social preview -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="YT Rec — 單獨錄下一個 YouTube 直播">
+<meta property="og:description" content="只錄那一個直播視窗的畫面與聲音，邊錄邊工作，不會錄到電腦其他聲音。免費開源。">
+<meta property="og:url" content="https://ytrec.resonaframe.com/">
+<meta property="og:image" content="https://ytrec.resonaframe.com/og.png">
+<meta name="twitter:card" content="summary_large_image">
+
+<style>
+  :root{
+    --red:#FF2E45;
+    --red-bright:#FF3D52;
+    --crimson:#D5002A;
+    --ink:#15171C;
+    --ink-soft:#22252d;
+    --gray:#8A8F98;
+    --cloud:#F5F6F8;
+    --line:#e7e9ee;
+    --text:#1c1f26;
+    --text-dim:#5b606b;
+    --radius:16px;
+    --maxw:1120px;
+    --shadow-sm:0 1px 2px rgba(21,23,28,.06), 0 4px 12px rgba(21,23,28,.05);
+    --shadow-lg:0 24px 60px -16px rgba(21,23,28,.35);
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC","Noto Sans TC","Microsoft JhengHei",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    font-family:var(--font);
+    color:var(--text);
+    background:#fff;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+  }
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  section{padding:88px 0}
+  h1,h2,h3{line-height:1.2;letter-spacing:-.01em;font-weight:800}
+  h2{font-size:clamp(26px,3.4vw,38px)}
+  .eyebrow{
+    display:inline-block;font-size:13px;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--red);margin-bottom:14px;
+  }
+  .lede{font-size:clamp(16px,1.9vw,19px);color:var(--text-dim);max-width:640px}
+  .center{text-align:center;margin-left:auto;margin-right:auto}
+
+  /* ---------- Buttons ---------- */
+  .btn{
+    display:inline-flex;align-items:center;gap:10px;
+    padding:14px 22px;border-radius:12px;font-weight:700;font-size:15px;
+    border:1px solid transparent;cursor:pointer;transition:.18s ease;
+    white-space:nowrap;
+  }
+  .btn svg{width:18px;height:18px;flex:none}
+  .btn-primary{background:var(--red);color:#fff;box-shadow:0 8px 20px -8px rgba(255,46,69,.7)}
+  .btn-primary:hover{background:var(--red-bright);transform:translateY(-1px)}
+  .btn-primary:active{background:var(--crimson)}
+  .btn-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.28)}
+  .btn-ghost:hover{border-color:#fff;background:rgba(255,255,255,.08)}
+  .btn-dark{background:var(--ink);color:#fff}
+  .btn-dark:hover{background:var(--ink-soft);transform:translateY(-1px)}
+  .btn-disabled{background:#eceef2;color:var(--gray);border-color:var(--line);cursor:default}
+  .btn-disabled:hover{transform:none}
+  .btn-outline{background:#fff;color:var(--text);border-color:var(--line)}
+  .btn-outline:hover{border-color:var(--gray)}
+
+  /* ---------- Nav ---------- */
+  header.nav{
+    position:sticky;top:0;z-index:50;
+    background:rgba(21,23,28,.82);backdrop-filter:saturate(160%) blur(14px);
+    border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  .nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+  .brand{display:flex;align-items:center;gap:11px;color:#fff;font-weight:800;font-size:17px;letter-spacing:-.02em}
+  .brand .mark{width:30px;height:30px;border-radius:8px;flex:none}
+  .nav-links{display:flex;align-items:center;gap:28px}
+  .nav-links a{color:rgba(255,255,255,.74);font-size:14.5px;font-weight:600;transition:.15s}
+  .nav-links a:hover{color:#fff}
+  .lang-toggle{
+    display:flex;align-items:center;gap:2px;background:rgba(255,255,255,.1);
+    border-radius:9px;padding:3px;
+  }
+  .lang-toggle button{
+    background:transparent;border:0;color:rgba(255,255,255,.6);
+    font:inherit;font-size:12.5px;font-weight:700;padding:4px 10px;border-radius:6px;cursor:pointer;
+  }
+  .lang-toggle button.on{background:#fff;color:var(--ink)}
+  .nav-cta{display:flex;align-items:center;gap:16px}
+  .hamburger{display:none;background:none;border:0;cursor:pointer;padding:8px}
+  .hamburger span{display:block;width:22px;height:2px;background:#fff;margin:4px 0;border-radius:2px;transition:.2s}
+
+  /* ---------- Hero ---------- */
+  .hero{
+    background:radial-gradient(1100px 520px at 78% -8%, #2a2d36 0%, var(--ink) 55%);
+    color:#fff;padding:84px 0 96px;overflow:hidden;
+  }
+  .hero .wrap{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
+  .hero-badge{
+    display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;
+    color:rgba(255,255,255,.82);background:rgba(255,255,255,.07);
+    border:1px solid rgba(255,255,255,.12);padding:6px 13px;border-radius:999px;margin-bottom:22px;
+  }
+  .hero-badge .dot{width:7px;height:7px;border-radius:50%;background:var(--red);box-shadow:0 0 0 4px rgba(255,46,69,.22)}
+  .hero h1{font-size:clamp(32px,4.6vw,52px);color:#fff;margin-bottom:20px}
+  .hero h1 .hl{color:var(--red-bright)}
+  .hero p.sub{font-size:clamp(16px,1.9vw,19px);color:rgba(255,255,255,.74);max-width:540px;margin-bottom:30px}
+  .hero-cta{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+  .hero-note{font-size:13px;color:rgba(255,255,255,.5);margin-top:16px}
+
+  /* ---------- Hero mock window ---------- */
+  .mock{
+    position:relative;justify-self:center;width:100%;max-width:440px;
+  }
+  .mock-desk{
+    position:absolute;inset:-30px -10px -34px 30px;border-radius:18px;
+    background:linear-gradient(135deg,#33373f,#23262d);opacity:.5;filter:blur(1px);
+  }
+  .mock-win{
+    position:relative;background:#0e0f13;border-radius:14px;overflow:hidden;
+    box-shadow:var(--shadow-lg);border:1px solid rgba(255,255,255,.1);
+  }
+  .mock-bar{display:flex;align-items:center;gap:8px;padding:11px 14px;background:#1b1d23;border-bottom:1px solid rgba(255,255,255,.06)}
+  .mock-bar .tl{display:flex;gap:7px}
+  .mock-bar .tl i{width:11px;height:11px;border-radius:50%;display:block}
+  .mock-bar .tl i:nth-child(1){background:#ff5f57}
+  .mock-bar .tl i:nth-child(2){background:#febc2e}
+  .mock-bar .tl i:nth-child(3){background:#28c840}
+  .mock-bar .pin{margin-left:auto;font-size:11px;color:rgba(255,255,255,.4);font-weight:600;display:flex;align-items:center;gap:5px}
+  .mock-screen{
+    aspect-ratio:16/9;position:relative;
+    background:linear-gradient(160deg,#3a2030,#1a1620 60%);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .mock-screen .play{
+    width:62px;height:62px;border-radius:50%;background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;
+  }
+  .mock-screen .play::after{content:"";border-left:18px solid #fff;border-top:11px solid transparent;border-bottom:11px solid transparent;margin-left:4px;border-radius:2px}
+  .rec-badge{
+    position:absolute;top:12px;left:12px;display:flex;align-items:center;gap:7px;
+    background:rgba(13,13,16,.72);backdrop-filter:blur(6px);
+    padding:6px 11px;border-radius:8px;font-size:12.5px;font-weight:700;color:#fff;letter-spacing:.02em;
+  }
+  .rec-badge .live{width:9px;height:9px;border-radius:50%;background:var(--red);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(255,46,69,.5)}50%{opacity:.7;box-shadow:0 0 0 6px rgba(255,46,69,0)}}
+  .mock-callout{
+    position:absolute;right:-14px;bottom:-22px;background:#fff;color:var(--ink);
+    font-size:12.5px;font-weight:700;padding:10px 14px;border-radius:11px;box-shadow:var(--shadow-lg);
+    max-width:210px;line-height:1.45;
+  }
+  .mock-callout b{color:var(--red)}
+
+  /* ---------- Why / comparison ---------- */
+  .why{background:var(--cloud)}
+  .cmp{
+    margin-top:42px;background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+    overflow:hidden;box-shadow:var(--shadow-sm);
+  }
+  .cmp table{width:100%;border-collapse:collapse;font-size:15px}
+  .cmp th,.cmp td{padding:17px 20px;text-align:left;vertical-align:top}
+  .cmp thead th{font-size:13px;font-weight:700;color:var(--text-dim);background:#fbfbfc;border-bottom:1px solid var(--line)}
+  .cmp thead th.ytrec{color:var(--red)}
+  .cmp tbody tr+tr td{border-top:1px solid var(--line)}
+  .cmp td.label{font-weight:700;color:var(--ink);width:30%}
+  .cmp td.plain{color:var(--text-dim);width:35%}
+  .cmp td.ytrec{font-weight:600;width:35%}
+  .cmp td.ytrec::before{content:"✓";color:var(--red);font-weight:800;margin-right:9px}
+  .cmp .ytcol{background:rgba(255,46,69,.035)}
+
+  /* ---------- How it works ---------- */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:46px}
+  .step{position:relative;padding-top:6px}
+  .step .n{
+    width:40px;height:40px;border-radius:11px;background:var(--ink);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;margin-bottom:18px;
+  }
+  .step h3{font-size:19px;margin-bottom:8px}
+  .step p{color:var(--text-dim);font-size:15px}
+
+  /* ---------- Features ---------- */
+  .feat{background:var(--cloud)}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:46px}
+  .card{
+    background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:26px;
+    box-shadow:var(--shadow-sm);transition:.2s;
+  }
+  .card:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg)}
+  .card .ic{
+    width:44px;height:44px;border-radius:11px;background:rgba(255,46,69,.1);color:var(--red);
+    display:flex;align-items:center;justify-content:center;margin-bottom:16px;
+  }
+  .card .ic svg{width:22px;height:22px}
+  .card h3{font-size:17.5px;margin-bottom:8px}
+  .card p{color:var(--text-dim);font-size:14.5px}
+
+  /* ---------- Download ---------- */
+  .dl-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:46px}
+  .dl-card{
+    border:1px solid var(--line);border-radius:var(--radius);padding:32px;background:#fff;
+    display:flex;flex-direction:column;box-shadow:var(--shadow-sm);
+  }
+  .dl-card.ready{border-color:rgba(255,46,69,.3);box-shadow:0 16px 40px -20px rgba(255,46,69,.45)}
+  .dl-os{display:flex;align-items:center;gap:13px;margin-bottom:6px}
+  .dl-os svg{width:30px;height:30px}
+  .dl-os h3{font-size:21px}
+  .dl-tag{font-size:12px;font-weight:700;padding:3px 10px;border-radius:999px;margin-left:auto}
+  .dl-tag.ok{background:rgba(255,46,69,.1);color:var(--crimson)}
+  .dl-tag.soon{background:#eef0f3;color:var(--gray)}
+  .dl-req{color:var(--text-dim);font-size:14px;margin:14px 0 22px}
+  .dl-req b{color:var(--text)}
+  .dl-card .btn{margin-top:auto;justify-content:center}
+  .dl-size{text-align:center;font-size:12.5px;color:var(--gray);margin-top:12px}
+
+  /* ---------- Open source ---------- */
+  .os{background:var(--ink);color:#fff}
+  .os .wrap{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center}
+  .os h2{color:#fff}
+  .os p{color:rgba(255,255,255,.72);margin-top:16px;font-size:16px}
+  .os .badges{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
+  .os .badge{
+    font-size:13px;font-weight:600;color:rgba(255,255,255,.85);
+    background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);
+    padding:7px 14px;border-radius:999px;
+  }
+  .os-note{font-size:13.5px;color:rgba(255,255,255,.5);margin-top:24px;line-height:1.6}
+  .os-actions{display:flex;flex-direction:column;gap:14px}
+  .repo-card{
+    background:var(--ink-soft);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:22px;
+  }
+  .repo-card .row{display:flex;align-items:center;gap:10px;color:rgba(255,255,255,.6);font-size:13.5px;margin-top:14px}
+  .repo-card code{
+    display:block;background:#0c0d11;border:1px solid rgba(255,255,255,.08);border-radius:9px;
+    padding:12px 14px;font-size:13px;color:#cfd3da;margin-top:6px;font-family:ui-monospace,Menlo,Consolas,monospace;overflow-x:auto;
+  }
+
+  /* ---------- Sponsor ---------- */
+  .sponsor .box{
+    margin-top:8px;background:linear-gradient(135deg,#fff,#fff7f8);
+    border:1px solid rgba(255,46,69,.22);border-radius:20px;padding:48px;text-align:center;
+    box-shadow:var(--shadow-sm);
+  }
+  .sponsor .cup{font-size:42px;margin-bottom:12px}
+  .sponsor p{color:var(--text-dim);max-width:520px;margin:14px auto 26px}
+  .kofi-embed{border:none;width:100%;max-width:420px;height:580px;background:transparent;border-radius:14px;margin:0 auto;display:block;overflow:hidden}
+  .kofi-link{display:inline-block;margin-top:14px;font-size:13.5px;font-weight:700;color:var(--red)}
+  .kofi-link:hover{text-decoration:underline}
+
+  /* ---------- FAQ ---------- */
+  .faq{background:var(--cloud)}
+  .faq-list{margin-top:40px;max-width:780px;margin-left:auto;margin-right:auto}
+  details{background:#fff;border:1px solid var(--line);border-radius:12px;margin-bottom:12px;overflow:hidden}
+  details summary{
+    padding:18px 22px;font-weight:700;cursor:pointer;list-style:none;
+    display:flex;justify-content:space-between;align-items:center;gap:16px;font-size:16px;
+  }
+  details summary::-webkit-details-marker{display:none}
+  details summary::after{content:"+";color:var(--red);font-size:22px;font-weight:600;flex:none;transition:.2s}
+  details[open] summary::after{transform:rotate(45deg)}
+  details .a{padding:0 22px 20px;color:var(--text-dim);font-size:15px}
+
+  /* ---------- Footer ---------- */
+  footer.foot{background:#0c0d11;color:rgba(255,255,255,.55);padding:48px 0;font-size:13.5px}
+  footer.foot .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:20px;align-items:center}
+  footer.foot .brand{color:#fff;font-size:15px}
+  footer.foot .brand .mark{width:24px;height:24px}
+  footer.foot a:hover{color:#fff}
+  .foot-links{display:flex;gap:22px}
+  .trademark{width:100%;font-size:12.5px;color:rgba(255,255,255,.38);border-top:1px solid rgba(255,255,255,.08);padding-top:20px;margin-top:6px}
+
+  /* ---------- Responsive ---------- */
+  @media(max-width:880px){
+    section{padding:64px 0}
+    .hero{padding:56px 0 70px}
+    .hero .wrap{grid-template-columns:1fr;gap:48px}
+    .mock{max-width:400px;margin-top:8px}
+    .os .wrap{grid-template-columns:1fr;gap:32px}
+    .steps,.grid3,.dl-grid{grid-template-columns:1fr}
+    .grid3{gap:16px}
+    .nav-links{display:none}
+    .hamburger{display:block}
+    .nav-links.open{
+      display:flex;flex-direction:column;position:absolute;top:64px;left:0;right:0;
+      background:var(--ink);padding:18px 24px;gap:18px;border-bottom:1px solid rgba(255,255,255,.1);
+    }
+    .cmp{overflow-x:auto}
+    .cmp table{min-width:560px}
+  }
+  @media(max-width:520px){
+    .sponsor .box{padding:32px 22px}
+    .hero-cta{flex-direction:column;align-items:stretch}
+    .hero-cta .btn{justify-content:center}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ NAV ============ -->
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="YT Rec">
+      <svg class="mark" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF3D52"/><stop offset="1" stop-color="#D5002A"/></linearGradient></defs><rect x="100" y="100" width="824" height="824" rx="185" fill="url(#g)"/><g fill="none" stroke="#fff" stroke-width="37" stroke-linecap="round" stroke-linejoin="round"><path d="M330.7 429.6 L330.7 363.7 Q330.7 330.7 363.7 330.7 L429.6 330.7"/><path d="M594.4 330.7 L660.3 330.7 Q693.3 330.7 693.3 363.7 L693.3 429.6"/><path d="M693.3 594.4 L693.3 660.3 Q693.3 693.3 660.3 693.3 L594.4 693.3"/><path d="M429.6 693.3 L363.7 693.3 Q330.7 693.3 330.7 660.3 L330.7 594.4"/></g><path d="M462.6 437.8 L462.6 586.2 L610.9 512 Z" fill="#fff" stroke="#fff" stroke-width="41" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      <span>YT Rec</span>
+    </a>
+    <nav class="nav-links" id="navLinks">
+      <a href="#why" data-i18n="nav.why">為何不同</a>
+      <a href="#features" data-i18n="nav.features">功能</a>
+      <a href="#download" data-i18n="nav.download">下載</a>
+      <a href="#opensource" data-i18n="nav.opensource">開源</a>
+      <a href="#sponsor" data-i18n="nav.support">贊助</a>
+    </nav>
+    <div class="nav-cta">
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button data-lang="zh" class="on">中</button>
+        <button data-lang="en">EN</button>
+      </div>
+      <button class="hamburger" id="hamburger" aria-label="Menu"><span></span><span></span><span></span></button>
+    </div>
+  </div>
+</header>
+
+<a id="top"></a>
+
+<!-- ============ HERO ============ -->
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <span class="hero-badge"><span class="dot"></span><span data-i18n="hero.badge">開源 · 免費 · macOS 已上線</span></span>
+      <h1 data-i18n="hero.title">直播一開，<span class="hl">立刻框住</span>、單獨錄下來。</h1>
+      <p class="sub" data-i18n="hero.sub">把單一 YouTube 直播視窗的畫面與聲音單獨錄下來——看得到、聽得到，但不佔用你的工作畫面，也不會錄到電腦其他聲音。</p>
+      <div class="hero-cta">
+        <a class="btn btn-primary" href="#download">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 2.6c.1 1-.3 2-1 2.8-.7.8-1.7 1.4-2.7 1.3-.1-1 .4-2 1-2.7.7-.8 1.8-1.4 2.7-1.4zM19 17.3c-.5 1.1-.7 1.6-1.3 2.6-.9 1.4-2.1 3.1-3.7 3.1-1.4 0-1.7-.9-3.6-.9s-2.3.9-3.6.9c-1.6 0-2.8-1.6-3.6-3-2.4-3.7-2.6-8.1-1.2-10.4 1-1.7 2.6-2.7 4.1-2.7 1.5 0 2.5 1 3.7 1 1.2 0 1.9-1 3.7-1 1.3 0 2.7.7 3.7 2-3.3 1.8-2.7 6.4 1.4 8.4z"/></svg>
+          <span data-i18n="hero.ctaMac">下載 Mac 版</span>
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/weibing078/yt-rec" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 1.5A10.5 10.5 0 0 0 8.7 22c.5.1.7-.2.7-.5v-2c-2.9.6-3.5-1.3-3.5-1.3-.5-1.2-1.2-1.5-1.2-1.5-.9-.6.1-.6.1-.6 1 .1 1.6 1 1.6 1 .9 1.6 2.4 1.1 3 .8.1-.6.4-1.1.6-1.4-2.3-.3-4.7-1.1-4.7-5a4 4 0 0 1 1-2.7c-.1-.3-.5-1.4.1-2.8 0 0 .9-.3 2.8 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.8-1 2.8-1 .6 1.4.2 2.5.1 2.8a4 4 0 0 1 1 2.7c0 3.9-2.3 4.7-4.6 5 .4.3.7.9.7 1.9v2.7c0 .3.2.6.7.5A10.5 10.5 0 0 0 12 1.5z"/></svg>
+          <span data-i18n="hero.github">在 GitHub 上看</span>
+        </a>
+      </div>
+      <p class="hero-note" data-i18n="hero.note">macOS 14.4+ · Apple Silicon · 已簽名與公證　|　Windows 版開發中</p>
+    </div>
+
+    <div class="mock">
+      <div class="mock-desk"></div>
+      <div class="mock-win">
+        <div class="mock-bar">
+          <div class="tl"><i></i><i></i><i></i></div>
+          <div class="pin" data-i18n="hero.pin">📌 總在最上層</div>
+        </div>
+        <div class="mock-screen">
+          <div class="rec-badge"><span class="live"></span><span data-i18n="hero.rec">錄製中 · 00:12:34</span></div>
+          <div class="play"></div>
+        </div>
+      </div>
+      <div class="mock-callout" data-i18n="hero.callout">把 Premiere 疊在上面，<b>疊上去的東西不會被錄進去</b>。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ WHY DIFFERENT ============ -->
+<section class="why" id="why">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow" data-i18n="why.eyebrow">為何不同</span>
+      <h2 data-i18n="why.title">和「整個螢幕錄影」差在哪？</h2>
+    </div>
+    <div class="cmp">
+      <table>
+        <thead>
+          <tr>
+            <th data-i18n="why.col0"></th>
+            <th data-i18n="why.colPlain">傳統螢幕錄影</th>
+            <th class="ytrec ytcol" data-i18n="why.colYtrec">YT Rec</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="label" data-i18n="why.r1.l">錄什麼</td>
+            <td class="plain" data-i18n="why.r1.p">整個螢幕</td>
+            <td class="ytrec ytcol" data-i18n="why.r1.y">只錄那一個直播視窗</td>
+          </tr>
+          <tr>
+            <td class="label" data-i18n="why.r2.l">能同時工作嗎</td>
+            <td class="plain" data-i18n="why.r2.p">不能，螢幕被佔住</td>
+            <td class="ytrec ytcol" data-i18n="why.r2.y">能，疊在上面的視窗不會被錄</td>
+          </tr>
+          <tr>
+            <td class="label" data-i18n="why.r3.l">其他 App 的聲音</td>
+            <td class="plain" data-i18n="why.r3.p">會一起混進去</td>
+            <td class="ytrec ytcol" data-i18n="why.r3.y">排除，只收該視窗的聲音</td>
+          </tr>
+          <tr>
+            <td class="label" data-i18n="why.r4.l">看得到在錄什麼嗎</td>
+            <td class="plain" data-i18n="why.r4.p">看得到，但佔住螢幕</td>
+            <td class="ytrec ytcol" data-i18n="why.r4.y">可移動、可置頂的小監看視窗</td>
+          </tr>
+          <tr>
+            <td class="label" data-i18n="why.r5.l">超長直播</td>
+            <td class="plain" data-i18n="why.r5.p">檔案爆大、容易壞</td>
+            <td class="ytrec ytcol" data-i18n="why.r5.y">抗崩潰切片＋磁碟／時長保護</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS ============ -->
+<section id="how">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow" data-i18n="how.eyebrow">怎麼運作</span>
+      <h2 data-i18n="how.title">三步，從直播到精華。</h2>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="n">1</div>
+        <h3 data-i18n="how.s1.t">貼上直播網址</h3>
+        <p data-i18n="how.s1.d">把 YouTube 直播連結貼進去，按「立即開錄」。它會自動判斷是進行中直播還是已結束影片。</p>
+      </div>
+      <div class="step">
+        <div class="n">2</div>
+        <h3 data-i18n="how.s2.t">邊錄邊工作</h3>
+        <p data-i18n="how.s2.d">一個浮動小窗顯示正在錄的畫面，可置頂、可縮到背景。你照常開 Premiere，疊上去的東西不會被錄進去。</p>
+      </div>
+      <div class="step">
+        <div class="n">3</div>
+        <h3 data-i18n="how.s3.t">拖進剪輯軟體</h3>
+        <p data-i18n="how.s3.d">錄好的檔案就是交付物，直接從主面板拖進 Premiere 剪精華。剪接在你熟悉的軟體裡做。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FEATURES ============ -->
+<section class="feat" id="features">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow" data-i18n="feat.eyebrow">功能</span>
+      <h2 data-i18n="feat.title">為「搶錄直播」這件事做的每個細節。</h2>
+    </div>
+    <div class="grid3">
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg></div>
+        <h3 data-i18n="feat.1.t">只擷取單一視窗</h3>
+        <p data-i18n="feat.1.d">用 ScreenCaptureKit 只錄那一個直播視窗的內容，其他視窗疊上去也不會被錄進去。</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.5 6.5a9 9 0 0 1 0 11"/></svg></div>
+        <h3 data-i18n="feat.2.t">只收該視窗的聲音</h3>
+        <p data-i18n="feat.2.d">只錄那個直播視窗的音訊，Premiere 音效、LINE 通知都不會混進去——已實機驗證零殘留。</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></div>
+        <h3 data-i18n="feat.3.t">看得到的監看小窗</h3>
+        <p data-i18n="feat.3.d">可移動、可縮放、可置頂的小窗，隨時確認在錄對的串流、沒有黑畫面或卡住。不想盯著可一鍵縮到背景。</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg></div>
+        <h3 data-i18n="feat.4.t">直播／影片智慧判斷</h3>
+        <p data-i18n="feat.4.d">進行中的直播 → 螢幕側錄；已結束的有限長度影片 → 建議改用下載，更快、畫質更好。</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div>
+        <h3 data-i18n="feat.5.t">抗崩潰長錄</h3>
+        <p data-i18n="feat.5.d">fMP4 分段切片＋磁碟與時長保護，6–8 小時、24hr 台也錄得住，意外當機也保得住已錄段落。</p>
+      </div>
+      <div class="card">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" fill="currentColor" stroke="none"/></svg></div>
+        <h3 data-i18n="feat.6.t">各平台原生</h3>
+        <p data-i18n="feat.6.d">macOS 用 Swift／SwiftUI，Windows 用 C#／.NET——各自原生實作，不是套殼，效能與穩定度到位。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DOWNLOAD ============ -->
+<section id="download">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow" data-i18n="dl.eyebrow">下載</span>
+      <h2 data-i18n="dl.title">免費下載，開始搶錄。</h2>
+    </div>
+    <div class="dl-grid">
+      <div class="dl-card ready">
+        <div class="dl-os">
+          <svg viewBox="0 0 24 24" fill="var(--ink)"><path d="M16.5 2.6c.1 1-.3 2-1 2.8-.7.8-1.7 1.4-2.7 1.3-.1-1 .4-2 1-2.7.7-.8 1.8-1.4 2.7-1.4zM19 17.3c-.5 1.1-.7 1.6-1.3 2.6-.9 1.4-2.1 3.1-3.7 3.1-1.4 0-1.7-.9-3.6-.9s-2.3.9-3.6.9c-1.6 0-2.8-1.6-3.6-3-2.4-3.7-2.6-8.1-1.2-10.4 1-1.7 2.6-2.7 4.1-2.7 1.5 0 2.5 1 3.7 1 1.2 0 1.9-1 3.7-1 1.3 0 2.7.7 3.7 2-3.3 1.8-2.7 6.4 1.4 8.4z"/></svg>
+          <h3>macOS</h3>
+          <span class="dl-tag ok" data-i18n="dl.mac.tag">可下載</span>
+        </div>
+        <p class="dl-req"><b data-i18n="dl.mac.req1">macOS 14.4 以上</b> · <span data-i18n="dl.mac.req2">Apple Silicon</span> · <span data-i18n="dl.mac.req3">已簽名與公證，雙擊即裝</span></p>
+        <a class="btn btn-primary" href="https://github.com/weibing078/yt-rec/releases/latest" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 11l5 5 5-5M5 21h14"/></svg>
+          <span data-i18n="dl.mac.btn">下載 .dmg</span>
+        </a>
+        <div class="dl-size" data-i18n="dl.mac.size">約 65 MB · 從 GitHub Releases 下載</div>
+      </div>
+
+      <div class="dl-card">
+        <div class="dl-os">
+          <svg viewBox="0 0 24 24" fill="var(--gray)"><path d="M3 5.6 10.3 4.6v6.8H3zM10.3 12.6v6.8L3 18.4v-5.8zM11.4 4.4 21 3v8.4h-9.6zM21 12.6V21l-9.6-1.4v-7z"/></svg>
+          <h3>Windows</h3>
+          <span class="dl-tag soon" data-i18n="dl.win.tag">開發中</span>
+        </div>
+        <p class="dl-req"><b data-i18n="dl.win.req1">Windows 11</b> <span data-i18n="dl.win.req2">（10 盡力支援）</span> · <span data-i18n="dl.win.req3">C# / .NET 8 + WinUI 3</span></p>
+        <a class="btn btn-outline" href="https://github.com/weibing078/yt-rec" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+          <span data-i18n="dl.win.btn">到 GitHub 追蹤進度</span>
+        </a>
+        <div class="dl-size" data-i18n="dl.win.size">釋出時會在 GitHub 發布 Release</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ OPEN SOURCE ============ -->
+<section class="os" id="opensource">
+  <div class="wrap">
+    <div>
+      <span class="eyebrow" data-i18n="os.eyebrow">開源</span>
+      <h2 data-i18n="os.title">完全開源，看得見、信得過。</h2>
+      <p data-i18n="os.body">YT Rec 以 Apache-2.0 授權釋出。兩個平台各自原生實作，靠一份共享的「行為規格」與驗收測試保持一致——程式碼公開，歡迎檢視、回報問題與貢獻。</p>
+      <div class="badges">
+        <span class="badge" data-i18n="os.b1">Apache-2.0 授權</span>
+        <span class="badge" data-i18n="os.b2">macOS · Swift / SwiftUI</span>
+        <span class="badge" data-i18n="os.b3">Windows · C# / .NET 8</span>
+      </div>
+      <p class="os-note" data-i18n="os.note">「YT Rec」名稱與圖示為商標。請只用於錄製你有權錄製、或合理使用範圍內的內容。</p>
+    </div>
+    <div class="os-actions">
+      <div class="repo-card">
+        <a class="btn btn-primary" style="width:100%;justify-content:center" href="https://github.com/weibing078/yt-rec" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M12 1.5A10.5 10.5 0 0 0 8.7 22c.5.1.7-.2.7-.5v-2c-2.9.6-3.5-1.3-3.5-1.3-.5-1.2-1.2-1.5-1.2-1.5-.9-.6.1-.6.1-.6 1 .1 1.6 1 1.6 1 .9 1.6 2.4 1.1 3 .8.1-.6.4-1.1.6-1.4-2.3-.3-4.7-1.1-4.7-5a4 4 0 0 1 1-2.7c-.1-.3-.5-1.4.1-2.8 0 0 .9-.3 2.8 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.8-1 2.8-1 .6 1.4.2 2.5.1 2.8a4 4 0 0 1 1 2.7c0 3.9-2.3 4.7-4.6 5 .4.3.7.9.7 1.9v2.7c0 .3.2.6.7.5A10.5 10.5 0 0 0 12 1.5z"/></svg>
+          <span data-i18n="os.repoBtn">查看原始碼</span>
+        </a>
+        <div class="row" data-i18n="os.clone">或用指令取得：</div>
+        <code>git clone https://github.com/weibing078/yt-rec.git</code>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SPONSOR ============ -->
+<section class="sponsor" id="sponsor">
+  <div class="wrap">
+    <div class="box">
+      <div class="cup">☕</div>
+      <span class="eyebrow" data-i18n="sponsor.eyebrow">支持開發</span>
+      <h2 data-i18n="sponsor.title">請我喝杯咖啡</h2>
+      <p data-i18n="sponsor.body">YT Rec 免費且開源。如果它幫你省下了搶錄直播的麻煩，歡迎請我喝杯咖啡，支持後續開發（包含 Windows 版）。</p>
+      <a class="btn btn-primary" href="https://ko-fi.com/ytrec" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a3 3 0 0 1 0 6h-1"/><path d="M2 8h16v5a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V8z"/><path d="M6 1v2M10 1v2M14 1v2"/></svg>
+        <span data-i18n="sponsor.btn">在 Ko-fi 上贊助</span>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section class="faq" id="faq">
+  <div class="wrap">
+    <div class="center">
+      <span class="eyebrow" data-i18n="faq.eyebrow">常見問題</span>
+      <h2 data-i18n="faq.title">你可能會問的</h2>
+    </div>
+    <div class="faq-list">
+      <details>
+        <summary data-i18n="faq.q1">這合法嗎？</summary>
+        <div class="a" data-i18n="faq.a1">YT Rec 只是一個錄製工具。請只錄製你有權錄製、或在合理使用範圍內的內容；是否遵守 YouTube 服務條款與當地法律，由使用者自行負責。</div>
+      </details>
+      <details>
+        <summary data-i18n="faq.q2">會錄到我電腦其他的聲音嗎？</summary>
+        <div class="a" data-i18n="faq.a2">不會。它只收那一個直播視窗 App 的聲音，其他 App（Premiere 音效、通知音）不會混進去——已用實機測試驗證零殘留。</div>
+      </details>
+      <details>
+        <summary data-i18n="faq.q3">要錢嗎？</summary>
+        <div class="a" data-i18n="faq.a3">完全免費、開源（Apache-2.0）。覺得有用的話，可以到 Ko-fi 請我喝杯咖啡，但完全自由。</div>
+      </details>
+      <details>
+        <summary data-i18n="faq.q4">Windows 版什麼時候有？</summary>
+        <div class="a" data-i18n="faq.a4">開發中。核心邏輯已經移植到跨平台的 .NET，原生擷取與介面正在進行。到 GitHub 點 Watch 追蹤進度，釋出時會發 Release。</div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="foot">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <svg class="mark" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="gf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF3D52"/><stop offset="1" stop-color="#D5002A"/></linearGradient></defs><rect x="100" y="100" width="824" height="824" rx="185" fill="url(#gf)"/><g fill="none" stroke="#fff" stroke-width="37" stroke-linecap="round" stroke-linejoin="round"><path d="M330.7 429.6 L330.7 363.7 Q330.7 330.7 363.7 330.7 L429.6 330.7"/><path d="M594.4 330.7 L660.3 330.7 Q693.3 330.7 693.3 363.7 L693.3 429.6"/><path d="M693.3 594.4 L693.3 660.3 Q693.3 693.3 660.3 693.3 L594.4 693.3"/><path d="M429.6 693.3 L363.7 693.3 Q330.7 693.3 330.7 660.3 L330.7 594.4"/></g><path d="M462.6 437.8 L462.6 586.2 L610.9 512 Z" fill="#fff" stroke="#fff" stroke-width="41" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      <span>YT Rec</span>
+    </a>
+    <div class="foot-links">
+      <a href="#download" data-i18n="nav.download">下載</a>
+      <a href="https://github.com/weibing078/yt-rec" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://ko-fi.com/ytrec" target="_blank" rel="noopener" data-i18n="nav.support">贊助</a>
+    </div>
+    <div class="trademark" data-i18n="foot.trademark">© 2026 YT Rec · 以 Apache-2.0 授權開源 ·「YT Rec」名稱與圖示為商標 · 請只用於錄製你有權錄製的內容。</div>
+  </div>
+</footer>
+
+<script>
+  /* ---------- i18n (繁中為 HTML 預設，英文在此覆寫) ---------- */
+  const EN = {
+    "nav.why":"Why",
+    "nav.features":"Features",
+    "nav.download":"Download",
+    "nav.opensource":"Open Source",
+    "nav.support":"Support",
+
+    "hero.badge":"Open source · Free · macOS shipping",
+    "hero.title":"The moment it's live, <span class=\"hl\">frame it</span> and record.",
+    "hero.sub":"Record one YouTube live stream — its video and only its audio — while you keep working, without capturing your other apps' sound.",
+    "hero.ctaMac":"Download for Mac",
+    "hero.github":"View on GitHub",
+    "hero.note":"macOS 14.4+ · Apple Silicon · signed & notarized　|　Windows in development",
+    "hero.pin":"📌 Always on top",
+    "hero.rec":"Recording · 00:12:34",
+    "hero.callout":"Stack Premiere on top — <b>what's on top isn't recorded</b>.",
+
+    "why.eyebrow":"Why it's different",
+    "why.title":"How is it different from full-screen recording?",
+    "why.col0":"",
+    "why.colPlain":"Plain screen recording",
+    "why.colYtrec":"YT Rec",
+    "why.r1.l":"What it records","why.r1.p":"The whole screen","why.r1.y":"Only that one stream window",
+    "why.r2.l":"Work while recording","why.r2.p":"No — the screen is occupied","why.r2.y":"Yes — windows on top aren't captured",
+    "why.r3.l":"Other apps' audio","why.r3.p":"Mixed in","why.r3.y":"Excluded — only that window's audio",
+    "why.r4.l":"See what's recording","why.r4.p":"Yes, but it occupies the screen","why.r4.y":"A small, movable, pin-on-top monitor",
+    "why.r5.l":"Very long streams","why.r5.p":"Files bloat, fragile","why.r5.y":"Crash-resistant segments + disk/duration guards",
+
+    "how.eyebrow":"How it works",
+    "how.title":"Three steps, from live to highlight.",
+    "how.s1.t":"Paste the live URL","how.s1.d":"Drop in the YouTube live link and hit record. It auto-detects whether it's a live stream or a finished video.",
+    "how.s2.t":"Keep working","how.s2.d":"A floating window shows what's recording — pin it on top or shrink it away. Open Premiere as usual; what you stack on top isn't recorded.",
+    "how.s3.t":"Drag into your NLE","how.s3.d":"The recording is the deliverable — drag it straight from the panel into Premiere. Edit in the tool you already know.",
+
+    "feat.eyebrow":"Features",
+    "feat.title":"Every detail built for grabbing live streams.",
+    "feat.1.t":"Single-window capture","feat.1.d":"ScreenCaptureKit records only that one stream window — other windows stacked on top aren't captured.",
+    "feat.2.t":"Isolated audio","feat.2.d":"Records only that window's audio — Premiere effects and notification sounds stay out. Verified zero bleed on real hardware.",
+    "feat.3.t":"A monitor you can see","feat.3.d":"A movable, resizable, pin-on-top window so you can confirm the right stream is recording — not a black screen. Shrink it away anytime.",
+    "feat.4.t":"Smart live detection","feat.4.d":"Live stream → screen capture. Finished, finite-length video → it suggests downloading instead: faster and higher quality.",
+    "feat.5.t":"Crash-resistant long recording","feat.5.d":"fMP4 segments plus disk and duration guards — 6–8 hour and 24/7 channels hold up, and recorded segments survive crashes.",
+    "feat.6.t":"Native on each platform","feat.6.d":"Swift/SwiftUI on macOS, C#/.NET on Windows — natively built on each, no cross-platform shell. Performance and stability where it counts.",
+
+    "dl.eyebrow":"Download",
+    "dl.title":"Free to download. Start grabbing.",
+    "dl.mac.tag":"Available",
+    "dl.mac.req1":"macOS 14.4+","dl.mac.req2":"Apple Silicon","dl.mac.req3":"Signed & notarized — double-click to install",
+    "dl.mac.btn":"Download .dmg","dl.mac.size":"~65 MB · from GitHub Releases",
+    "dl.win.tag":"In development",
+    "dl.win.req1":"Windows 11","dl.win.req2":"(10 best-effort)","dl.win.req3":"C# / .NET 8 + WinUI 3",
+    "dl.win.btn":"Follow progress on GitHub","dl.win.size":"A Release will be published when it ships",
+
+    "os.eyebrow":"Open source",
+    "os.title":"Fully open. Visible, trustworthy.",
+    "os.body":"YT Rec is released under Apache-2.0. The two platforms are built natively, kept in sync by one shared behavior spec and acceptance tests — the code is public, open to review, issues and contributions.",
+    "os.b1":"Apache-2.0 licensed","os.b2":"macOS · Swift / SwiftUI","os.b3":"Windows · C# / .NET 8",
+    "os.note":"\"YT Rec\" and its icon are trademarks. Use only to record content you are entitled to record, or within fair use.",
+    "os.repoBtn":"View the source","os.clone":"Or grab it from the command line:",
+
+    "sponsor.eyebrow":"Support development",
+    "sponsor.title":"Buy me a coffee",
+    "sponsor.body":"YT Rec is free and open source. If it saved you the hassle of grabbing a live stream, a coffee helps fund what's next — including the Windows version.",
+    "sponsor.btn":"Support on Ko-fi",
+
+    "faq.eyebrow":"FAQ",
+    "faq.title":"You might be wondering",
+    "faq.q1":"Is this legal?","faq.a1":"YT Rec is just a recording tool. Record only content you're entitled to record, or within fair use; complying with YouTube's Terms and your local laws is your responsibility.",
+    "faq.q2":"Will it record my other apps' audio?","faq.a2":"No. It captures only that one stream window's audio — other apps (Premiere effects, notifications) stay out. Verified zero bleed on real hardware.",
+    "faq.q3":"How much does it cost?","faq.a3":"Completely free and open source (Apache-2.0). If it's useful, a coffee on Ko-fi is welcome — but entirely optional.",
+    "faq.q4":"When is the Windows version coming?","faq.a4":"In development. The core logic is already ported to cross-platform .NET; native capture and UI are in progress. Watch the repo on GitHub — a Release goes out when it ships.",
+
+    "foot.trademark":"© 2026 YT Rec · Open source under Apache-2.0 · \"YT Rec\" and its icon are trademarks · Use only to record content you are entitled to record."
+  };
+
+  const nodes = document.querySelectorAll('[data-i18n]');
+  const ZH = {};
+  nodes.forEach(el => ZH[el.getAttribute('data-i18n')] = el.innerHTML);
+
+  function setLang(lang){
+    const dict = lang === 'en' ? EN : ZH;
+    nodes.forEach(el=>{
+      const k = el.getAttribute('data-i18n');
+      const v = dict[k];
+      if(v !== undefined) el.innerHTML = v;
+      else el.innerHTML = ZH[k];
+    });
+    document.documentElement.lang = lang === 'en' ? 'en' : 'zh-Hant';
+    document.querySelectorAll('.lang-toggle button').forEach(b=>{
+      b.classList.toggle('on', b.getAttribute('data-lang') === lang);
+    });
+    try{ localStorage.setItem('ytrec-lang', lang); }catch(e){}
+  }
+
+  document.querySelectorAll('.lang-toggle button').forEach(b=>{
+    b.addEventListener('click', ()=> setLang(b.getAttribute('data-lang')));
+  });
+
+  // restore saved language
+  try{
+    const saved = localStorage.getItem('ytrec-lang');
+    if(saved === 'en') setLang('en');
+  }catch(e){}
+
+  // mobile nav
+  const burger = document.getElementById('hamburger');
+  const links = document.getElementById('navLinks');
+  burger.addEventListener('click', ()=> links.classList.toggle('open'));
+  links.querySelectorAll('a').forEach(a=> a.addEventListener('click', ()=> links.classList.remove('open')));
+</script>
+
+<!-- ============ Ko-fi floating button ============ -->
+<script src="https://storage.ko-fi.com/cdn/scripts/overlay-widget.js"></script>
+<script>
+  kofiWidgetOverlay.draw('ytrec', {
+    'type': 'floating-chat',
+    'floating-chat.donateButton.text': '請我喝咖啡',
+    'floating-chat.donateButton.background-color': '#FF2E45',
+    'floating-chat.donateButton.text-color': '#ffffff'
+  });
+</script>
+
+</body>
+</html>
