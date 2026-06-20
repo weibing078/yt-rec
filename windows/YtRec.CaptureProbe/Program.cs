@@ -52,6 +52,32 @@ switch (args[0])
         return await Report("foreground", hwnd.Value, seconds);
     }
 
+    case "--png":
+    {
+        if (args.Length < 2) { Console.Error.WriteLine("usage: --png <out.png>"); return 2; }
+        var outPath = args[1];
+        // Foreground window first — most likely actively rendering and not occluded by us.
+        var fg = WindowFinder.Foreground();
+        if (fg is not null)
+        {
+            var (ok0, w0, h0, err0) = await WindowCapture.CaptureFrameToPngAsync(fg.Value, outPath, 5000);
+            if (ok0) { Console.WriteLine($"OK foreground size={w0}x{h0} -> {outPath}"); return 0; }
+            Console.WriteLine($"foreground failed: {err0}");
+        }
+        // Otherwise scan visible windows (skip our own console) to PNG.
+        foreach (var (h, t) in WindowFinder.ListVisible().Take(15))
+        {
+            if (string.IsNullOrWhiteSpace(t)) continue;
+            if (t.Contains("cmd.exe", StringComparison.OrdinalIgnoreCase)) continue;
+            if (t.Contains("conhost", StringComparison.OrdinalIgnoreCase)) continue;
+            var (ok, w, hh, err) = await WindowCapture.CaptureFrameToPngAsync(h, outPath, 3000);
+            if (ok) { Console.WriteLine($"OK window='{t}' size={w}x{hh} -> {outPath}"); return 0; }
+            Console.WriteLine($"skip '{t}': {err}");
+        }
+        Console.WriteLine("no window captured to PNG");
+        return 1;
+    }
+
     default:
     {
         var hwnd = WindowFinder.FindByTitle(args[0]);
