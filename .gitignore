@@ -24,3 +24,7 @@ windows/**/*.user
 
 # ── Tool / test session artifacts ────────────────────────────────
 .playwright-mcp/
+
+# Local editor / tooling state (not for the repo)
+.claude/
+.wrangler/
