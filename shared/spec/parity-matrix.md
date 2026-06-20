@@ -5,8 +5,8 @@ Legend: ✅ done & verified · 🟡 partial / unverified · 🚧 in progress · 
 
 | Feature | macOS | Windows | Notes |
 |---|:---:|:---:|---|
-| **Track A — download (yt-dlp)** | ✅ | 🟡 | Engine+runner tested; WinUI download UI wired (MainViewModel); needs Win11 build/run. |
-| Main window (control center) | ✅ | 🟡 | WinUI 3 MainWindow written (Fluent dark, brand red); build-verify on Win11 pending. |
+| **Track A — download (yt-dlp)** | ✅ | 🟡 | Engine+runner 62 tests (incl. Windows CI); WinUI UI compiles on CI; GUI/runtime download test pending on Win11. |
+| Main window (control center) | ✅ | 🟡 | WinUI 3 MainWindow **compiles on Windows CI** (windows-build); GUI/runtime test pending. |
 | Probe + strategy ordering | ✅ | ✅ | C# port; ProcessRunner + YtDlpEngine. |
 | 30 s polling / 6 h give-up | ✅ | ✅ | polling implemented (configurable); stops on cancel/terminal/marathon. |
 | VOD section download | ✅ | ✅ | `YtDlpEngine.DownloadSectionAsync` (--download-sections), tested. |
@@ -27,6 +27,6 @@ Legend: ✅ done & verified · 🟡 partial / unverified · 🚧 in progress · 
 | System notifications | ✅ | ⬜ | |
 | Drag output → Premiere | ✅ | ⬜ | |
 | Preview/confirm player | ✅ | ⬜ | mac: AVPlayerView; win: MediaPlayerElement. |
-| Bilingual zh-TW + English | 🟡 | 🟡 | win: resw en-US + zh-Hant-TW, locale-based (build-verify pending); mac still zh-TW only. |
+| Bilingual zh-TW + English | 🟡 | 🟡 | win: resw en-US + zh-Hant-TW, locale-based, PRI compiles on CI; runtime locale test pending. mac still zh-TW only. |
 | True silent capture | ➖ | ➖ | deferred (virtual audio device) on both. |
 | Distribution / installer | ✅ (DMG) | ⬜ | win: GitHub Releases, unsigned (ADR-0005). |

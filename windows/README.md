@@ -9,12 +9,14 @@ Native Windows build: **C# / .NET 8 + WinUI 3** (see
 |---|---|---|
 | `YtRec.Core` | Cross-platform logic (download engine, parsing, disk/marathon, locator) | ✅ 62 tests green (runs on any OS) |
 | `YtRec.Core.Tests` | xUnit suite mirroring the macOS cases | ✅ |
-| `YtRec.App` | WinUI 3 main window (Phase 1 = download track UI) | 🚧 written; **needs a Win11 build pass** |
+| `YtRec.App` | WinUI 3 main window (Phase 1 = download track UI) | ✅ compiles on Windows CI · GUI/runtime test pending |
 
-> ⚠️ `YtRec.App` (WinUI 3) **cannot be built or tested on macOS/Linux** — it needs a
-> real Windows 11 environment. It was authored on a Mac, so expect the first
-> `dotnet build` on Windows to surface minor fix-ups (glyph codes, package
-> versions, x:Uid resource keys). Build it, paste any errors back, and we iterate.
+> `YtRec.App` (WinUI 3) **cannot be built on macOS/Linux** — but the
+> [`windows-build`](../.github/workflows/windows-build.yml) GitHub Actions workflow
+> compiles it on a real `windows-latest` runner on every push to `windows/**`. It is
+> currently **green** (compiles clean). What remains is **runtime/GUI testing** — running
+> the app and a real download — which needs a real Windows screen (your Win11 box or a
+> Windows VM). Build/run locally with the steps below; paste any runtime issues back.
 
 ## Layout (implemented)
 
