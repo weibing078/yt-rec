@@ -30,6 +30,9 @@ jobs:
       - name: Build YtRec.Cli (headless runner)
         run: dotnet build windows/YtRec.Cli/YtRec.Cli.csproj -c Release
 
+      - name: Build YtRec.Capture + probe (WGC, Phase 2a)
+        run: dotnet build windows/YtRec.CaptureProbe/YtRec.CaptureProbe.csproj -c Release -p:Platform=x64
+
       # WinUI 3 PRI/AppxPackage tasks live in VS MSBuild, not the bare .NET SDK,
       # so build the app with msbuild (/restore handles NuGet).
       - name: Build YtRec.App (WinUI 3, x64)
