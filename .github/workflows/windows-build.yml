@@ -20,11 +20,13 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Restore
-        run: dotnet restore windows/YtRec.sln
+      - name: Add VS MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
 
       - name: Test YtRec.Core
-        run: dotnet test windows/YtRec.Core.Tests/YtRec.Core.Tests.csproj -c Release --no-restore
+        run: dotnet test windows/YtRec.Core.Tests/YtRec.Core.Tests.csproj -c Release
 
+      # WinUI 3 PRI/AppxPackage tasks live in VS MSBuild, not the bare .NET SDK,
+      # so build the app with msbuild (/restore handles NuGet).
       - name: Build YtRec.App (WinUI 3, x64)
-        run: dotnet build windows/YtRec.App/YtRec.App.csproj -c Release -p:Platform=x64 --no-restore
+        run: msbuild windows/YtRec.App/YtRec.App.csproj /restore /p:Configuration=Release /p:Platform=x64
