@@ -10,6 +10,7 @@ public static class WindowFinder
 
     [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
     [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern int GetWindowTextLength(IntPtr hWnd);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
 
@@ -35,5 +36,11 @@ public static class WindowFinder
             if (t.Contains(substring, StringComparison.OrdinalIgnoreCase))
                 return h;
         return null;
+    }
+
+    public static IntPtr? Foreground()
+    {
+        var h = GetForegroundWindow();
+        return h == IntPtr.Zero ? null : h;
     }
 }
