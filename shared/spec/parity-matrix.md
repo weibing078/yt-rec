@@ -5,10 +5,10 @@ Legend: ✅ done & verified · 🟡 partial / unverified · 🚧 in progress · 
 
 | Feature | macOS | Windows | Notes |
 |---|:---:|:---:|---|
-| **Track A — download (yt-dlp)** | ✅ | 🟡 | Pure logic ported & tested in `YtRec.Core`; subprocess runner + UI pending. |
-| Probe + strategy ordering | ✅ | ✅ | C# port, 42 tests green (Phase 1). |
-| 30 s polling / 6 h give-up | ✅ | ⬜ | needs the process runner. |
-| VOD section download | ✅ | 🟡 | Timecode/section arg logic ported & tested; runner pending. |
+| **Track A — download (yt-dlp)** | ✅ | 🟡 | Engine + runner complete & tested (57 tests); needs WinUI wiring + real Win11 run. |
+| Probe + strategy ordering | ✅ | ✅ | C# port; ProcessRunner + YtDlpEngine. |
+| 30 s polling / 6 h give-up | ✅ | ✅ | polling implemented (configurable); stops on cancel/terminal/marathon. |
+| VOD section download | ✅ | ✅ | `YtDlpEngine.DownloadSectionAsync` (--download-sections), tested. |
 | **Track B — single-window video** | ✅ | ⬜ | mac: SCK; win: Windows.Graphics.Capture. |
 | **Per-window audio isolation** | ✅ | ⬜ | mac: SCK single-window; win: WASAPI process-loopback. **Hardest item.** |
 | Audio isolation bleed test passes | ✅ | ⬜ | tone-injection + spectral baseline. |
