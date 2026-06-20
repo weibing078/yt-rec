@@ -49,6 +49,26 @@ On macOS, develop/test `YtRec.Core` only:
 dotnet test windows/YtRec.Core.Tests/YtRec.Core.Tests.csproj
 ```
 
+## No-install (portable) distribution
+
+The app is **unpackaged** (`WindowsPackageType=None` — no MSIX/installer) and the
+release build is **self-contained** (bundles the .NET 8 runtime + Windows App SDK).
+Result: unzip → run `YtRec.exe`. No installer, no .NET install, no admin.
+
+The [`windows-build`](../.github/workflows/windows-build.yml) CI publishes this on
+every push and uploads it as the **`YtRec-win-x64-portable`** artifact (~61 MB; add
+`yt-dlp.exe` + `ffmpeg.exe` for the full ~150 MB release bundle). Produce it locally
+on Windows with:
+
+```powershell
+msbuild windows\YtRec.App\YtRec.App.csproj /t:Publish /p:Configuration=Release ^
+  /p:Platform=x64 /p:RuntimeIdentifier=win-x64 /p:SelfContained=true /p:WindowsAppSDKSelfContained=true
+# output: windows\YtRec.App\bin\x64\Release\net8.0-windows10.0.19041.0\win-x64\publish\
+```
+
+> WebView2 Runtime (Phase 2, for playing YouTube) is preinstalled on Win11 and most
+> Win10; bundle the fixed-version runtime only if targeting a bare machine.
+
 ## Phase 1 vs Phase 2
 
 - **Phase 1 (this UI):** download track — paste a URL → probe → download (incl.
