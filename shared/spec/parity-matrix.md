@@ -11,7 +11,8 @@ Legend: ✅ done & verified · 🟡 partial / unverified · 🚧 in progress · 
 | Probe + strategy ordering | ✅ | ✅ | C# port; ProcessRunner + YtDlpEngine. |
 | 30 s polling / 6 h give-up | ✅ | ✅ | polling implemented (configurable); stops on cancel/terminal/marathon. |
 | VOD section download | ✅ | ✅ | `YtDlpEngine.DownloadSectionAsync` (--download-sections), tested. |
-| **Track B — single-window video** | ✅ | 🟡 | mac: SCK. win: WGC **runtime-verified on real Win10** — real window captured to PNG (1938×1048, real content, not black). Encode pipeline (2c) next. |
+| **Track B — single-window video** | ✅ | 🟡 | mac: SCK. win: WGC capture → ffmpeg **H.264 MP4 verified end-to-end on real Win10** (live TradingView window → 1938×1048 12fps 3.33s, decodes to real content). Real-time continuous recorder + monitor + WebView2 next. |
+| Video encode → MP4 | ✅ | ✅ | win: PNG-sequence → bundled ffmpeg (libx264) → playable MP4, verified. Real-time raw-pipe variant is the next refinement. |
 | **Per-window audio isolation** | ✅ | ⬜ | mac: SCK single-window; win: WASAPI process-loopback. **Hardest item.** |
 | Audio isolation bleed test passes | ✅ | ⬜ | tone-injection + spectral baseline. |
 | fMP4 crash-resistant segments | ✅ | ⬜ | win: MF fragmented-MP4 or ffmpeg segmenter. |

@@ -52,6 +52,19 @@ switch (args[0])
         return await Report("foreground", hwnd.Value, seconds);
     }
 
+    case "--frames":
+    {
+        // --frames <count> <outdir>  : capture the foreground window as a PNG sequence
+        if (args.Length < 3) { Console.Error.WriteLine("usage: --frames <count> <outdir>"); return 2; }
+        var count = int.TryParse(args[1], out var c) ? c : 40;
+        var dir = args[2];
+        var fg = WindowFinder.Foreground();
+        if (fg is null) { Console.Error.WriteLine("no foreground window"); return 3; }
+        var saved = await WindowCapture.CaptureFramesToDirAsync(fg.Value, dir, count, maxSeconds: 8);
+        Console.WriteLine($"saved {saved} frames to {dir}");
+        return saved > 0 ? 0 : 1;
+    }
+
     case "--png":
     {
         if (args.Length < 2) { Console.Error.WriteLine("usage: --png <out.png>"); return 2; }

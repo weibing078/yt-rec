@@ -87,15 +87,7 @@ public static class WindowCapture
             using (var bmp = await SoftwareBitmap.CreateCopyFromSurfaceAsync(frame.Surface, BitmapAlphaMode.Premultiplied))
             {
                 w = bmp.PixelWidth; h = bmp.PixelHeight;
-                using var ras = new InMemoryRandomAccessStream();
-                var enc = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, ras);
-                enc.SetSoftwareBitmap(bmp);
-                await enc.FlushAsync();
-                var bytes = new byte[checked((int)ras.Size)];
-                using var reader = new DataReader(ras.GetInputStreamAt(0));
-                await reader.LoadAsync((uint)ras.Size);
-                reader.ReadBytes(bytes);
-                await File.WriteAllBytesAsync(pngPath, bytes);
+                await SavePngAsync(bmp, pngPath);
             }
         }
         catch (Exception e)
@@ -106,5 +98,58 @@ public static class WindowCapture
 
         session.Dispose(); pool.Dispose();
         return (true, w, h, null);
+    }
+
+    private static async Task SavePngAsync(SoftwareBitmap bmp, string pngPath)
+    {
+        using var ras = new InMemoryRandomAccessStream();
+        var enc = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, ras);
+        enc.SetSoftwareBitmap(bmp);
+        await enc.FlushAsync();
+        var bytes = new byte[checked((int)ras.Size)];
+        using var reader = new DataReader(ras.GetInputStreamAt(0));
+        await reader.LoadAsync((uint)ras.Size);
+        reader.ReadBytes(bytes);
+        await File.WriteAllBytesAsync(pngPath, bytes);
+    }
+
+    /// <summary>Capture up to <paramref name="count"/> frames of a window into dir as
+    /// frame_0001.png … (for assembling into a video with ffmpeg). Stops early if a static
+    /// window stops producing new frames. Returns the number saved.</summary>
+    public static async Task<int> CaptureFramesToDirAsync(IntPtr hwnd, string dir, int count, int maxSeconds)
+    {
+        Directory.CreateDirectory(dir);
+        if (!GraphicsCaptureSession.IsSupported()) return 0;
+
+        var item = CaptureInterop.CreateForWindow(hwnd);
+        var (_, device) = Direct3D11Helper.CreateDevice();
+        var pool = Direct3D11CaptureFramePool.CreateFreeThreaded(
+            device, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, item.Size);
+        var session = pool.CreateCaptureSession(item);
+        session.StartCapture();
+
+        var saved = 0;
+        var overall = System.Diagnostics.Stopwatch.StartNew();
+        var sinceNew = System.Diagnostics.Stopwatch.StartNew();
+        while (saved < count && overall.Elapsed.TotalSeconds < maxSeconds)
+        {
+            var frame = pool.TryGetNextFrame();
+            if (frame is null)
+            {
+                if (saved >= 1 && sinceNew.Elapsed.TotalSeconds > 1.5) break; // static window
+                await Task.Delay(15);
+                continue;
+            }
+            using (frame)
+            using (var bmp = await SoftwareBitmap.CreateCopyFromSurfaceAsync(frame.Surface, BitmapAlphaMode.Premultiplied))
+            {
+                await SavePngAsync(bmp, Path.Combine(dir, $"frame_{saved + 1:0000}.png"));
+            }
+            saved++;
+            sinceNew.Restart();
+        }
+
+        session.Dispose(); pool.Dispose();
+        return saved;
     }
 }
