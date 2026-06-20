@@ -1,0 +1,30 @@
+name: windows-build
+
+# Compiles the Windows app on a real Windows runner — the build-verification loop
+# for WinUI 3 code authored on macOS (which can't compile WinUI locally).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'windows/**'
+      - '.github/workflows/windows-build.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore windows/YtRec.sln
+
+      - name: Test YtRec.Core
+        run: dotnet test windows/YtRec.Core.Tests/YtRec.Core.Tests.csproj -c Release --no-restore
+
+      - name: Build YtRec.App (WinUI 3, x64)
+        run: dotnet build windows/YtRec.App/YtRec.App.csproj -c Release -p:Platform=x64 --no-restore
