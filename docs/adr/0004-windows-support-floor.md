@@ -24,6 +24,11 @@ requires build **20348, which NO consumer Windows 10 release ever shipped**
 - Video capture + download track still work on Win10 1903+.
 The app detects this at runtime and shows the audio mode (isolated vs system).
 
+**Owner decision (2026-06-20):** the target machine is **Windows 11** (full isolated-audio
+experience). Windows 10 is **best-effort** — video capture + download + system-audio
+side-recording, with a clear in-UI notice. A virtual-audio-device for Win10 isolation is
+deferred to v-next, not Phase 2.
+
 ## Consequences
 - Feature parity with macOS is full on Win11; partial (audio isolation) on old
   Win10 — an accepted, documented trade.
