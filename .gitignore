@@ -1,0 +1,26 @@
+# ── Build outputs ───────────────────────────────────────────────
+# Swift (mac)
+.build/
+**/.build/
+mac/dist/
+
+# .NET / WinUI (windows)
+windows/**/bin/
+windows/**/obj/
+windows/**/*.user
+.vs/
+
+# ── Vendored binaries (fetched by tools/setup-binaries.*) ────────
+# yt-dlp / ffmpeg are downloaded locally, never committed.
+**/Vendor/bin/
+**/vendor/bin/
+
+# ── OS / editor cruft ────────────────────────────────────────────
+.DS_Store
+*.o
+*.d
+.idea/
+*.swp
+
+# ── Tool / test session artifacts ────────────────────────────────
+.playwright-mcp/

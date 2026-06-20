@@ -1,0 +1,38 @@
+YT Rec
+Copyright © 2026 Resona Frame CO., LTD.
+
+This product is licensed under the Apache License, Version 2.0 (the
+"License"); see the LICENSE file. You may not use this product except in
+compliance with the License.
+
+================================================================================
+Trademarks / Brand
+================================================================================
+The "YT Rec" name, logo, and app icon are trademarks of Resona Frame CO., LTD.
+The Apache-2.0 license covers the SOURCE CODE only. It does NOT grant
+permission to use the project name, logo, or icon in a way that could imply
+endorsement by, or affiliation with, Resona Frame CO., LTD. If you distribute a
+modified build, please use your own name and icon.
+
+================================================================================
+Third-Party Components
+================================================================================
+This application does not statically link the tools below. It invokes them as
+separate external processes (subprocess). They are downloaded at setup time by
+tools/setup-binaries.* and are NOT redistributed in this source repository.
+
+- yt-dlp        — https://github.com/yt-dlp/yt-dlp        (Unlicense)
+- FFmpeg        — https://ffmpeg.org                       (LGPL-2.1+/GPL-2+,
+                  depending on build configuration)
+
+Each tool is governed by its own license. When you redistribute a packaged
+build that bundles these binaries, you are responsible for complying with their
+licenses (in particular FFmpeg's (L)GPL terms).
+
+================================================================================
+Acceptable Use
+================================================================================
+This tool is intended only for capturing material the user is legally entitled
+to record or download. Users are responsible for ensuring their recording and
+downloading complies with copyright law and the terms of service of the
+platforms involved.

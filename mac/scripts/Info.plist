@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>zh_TW</string>
+	<key>CFBundleExecutable</key>
+	<string>YTRec</string>
+	<key>CFBundleIdentifier</key>
+	<string>tw.weibing.ytrec</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>YT Rec</string>
+	<key>CFBundleDisplayName</key>
+	<string>YT Rec</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.4</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>YT Rec 需要擷取監看視窗的畫面與聲音進行螢幕側錄（只錄這個視窗，不會錄到其他軟體的畫面或聲音）。</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2026 Resona Frame CO., LTD. All rights reserved. 僅供處理有權使用之素材。</string>
+</dict>
+</plist>

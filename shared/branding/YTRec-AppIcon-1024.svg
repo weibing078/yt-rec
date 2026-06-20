@@ -1,0 +1,27 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="redBase" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FF3D52"/>
+      <stop offset="1" stop-color="#D5002A"/>
+    </linearGradient>
+    <clipPath id="body">
+      <rect x="100" y="100" width="824" height="824" rx="185"/>
+    </clipPath>
+  </defs>
+
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#redBase)"/>
+
+  <g clip-path="url(#body)">
+    <ellipse cx="512" cy="149" rx="593" ry="330" fill="#ffffff" opacity="0.13"/>
+    <ellipse cx="512" cy="957" rx="610" ry="280" fill="#3a0010" opacity="0.16"/>
+  </g>
+
+  <g fill="none" stroke="#ffffff" stroke-width="37" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M330.7 429.6 L330.7 363.7 Q330.7 330.7 363.7 330.7 L429.6 330.7"/>
+    <path d="M594.4 330.7 L660.3 330.7 Q693.3 330.7 693.3 363.7 L693.3 429.6"/>
+    <path d="M693.3 594.4 L693.3 660.3 Q693.3 693.3 660.3 693.3 L594.4 693.3"/>
+    <path d="M429.6 693.3 L363.7 693.3 Q330.7 693.3 330.7 660.3 L330.7 594.4"/>
+  </g>
+
+  <path d="M462.6 437.8 L462.6 586.2 L610.9 512 Z" fill="#ffffff" stroke="#ffffff" stroke-width="41" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>
