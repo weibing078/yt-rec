@@ -5,10 +5,10 @@ Legend: ✅ done & verified · 🟡 partial / unverified · 🚧 in progress · 
 
 | Feature | macOS | Windows | Notes |
 |---|:---:|:---:|---|
-| **Track A — download (yt-dlp)** | ✅ | ⬜ | Logic is cross-platform; port to `YtRec.Core`. |
-| Probe + strategy ordering | ✅ | ⬜ | See behavior-spec. |
-| 30 s polling / 6 h give-up | ✅ | ⬜ | |
-| VOD section download | ✅ | ⬜ | ended videos only. |
+| **Track A — download (yt-dlp)** | ✅ | 🟡 | Pure logic ported & tested in `YtRec.Core`; subprocess runner + UI pending. |
+| Probe + strategy ordering | ✅ | ✅ | C# port, 42 tests green (Phase 1). |
+| 30 s polling / 6 h give-up | ✅ | ⬜ | needs the process runner. |
+| VOD section download | ✅ | 🟡 | Timecode/section arg logic ported & tested; runner pending. |
 | **Track B — single-window video** | ✅ | ⬜ | mac: SCK; win: Windows.Graphics.Capture. |
 | **Per-window audio isolation** | ✅ | ⬜ | mac: SCK single-window; win: WASAPI process-loopback. **Hardest item.** |
 | Audio isolation bleed test passes | ✅ | ⬜ | tone-injection + spectral baseline. |
@@ -18,9 +18,9 @@ Legend: ✅ done & verified · 🟡 partial / unverified · 🚧 in progress · 
 | Rewind recording | ✅ | ⬜ | player seek API; needs DVR window. |
 | Monitor window (move/resize/pin/shrink) | ✅ | ⬜ | win: never truly minimize. |
 | Disaster recovery on launch | ✅ | ⬜ | scan segments, reassemble, idempotent. |
-| Disk guard (8/10/15 GB) | ✅ | ⬜ | pure logic, port verbatim. |
+| Disk guard (8/10/15 GB) | ✅ | ✅ | ported & tested (Phase 1). |
 | Duration cap (3/6/12/∞) | ✅ | ⬜ | |
-| Marathon detect (>4 h) | ✅ | ⬜ | |
+| Marathon detect (>4 h) | ✅ | ✅ | ported & tested (Phase 1). |
 | Sleep prevention during record | ✅ | ⬜ | mac: beginActivity; win: SetThreadExecutionState. |
 | Permission UX + self-check | ✅ | 🟡 | win consent model differs; no mic permission needed. |
 | System notifications | ✅ | ⬜ | |

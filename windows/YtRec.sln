@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YtRec.Core", "YtRec.Core\YtRec.Core.csproj", "{D5CB751B-F12B-44D4-8CD7-7B1F2CEFA076}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YtRec.Core.Tests", "YtRec.Core.Tests\YtRec.Core.Tests.csproj", "{86A5F1CD-4238-454A-A48C-611F1055DFD6}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{D5CB751B-F12B-44D4-8CD7-7B1F2CEFA076}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D5CB751B-F12B-44D4-8CD7-7B1F2CEFA076}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D5CB751B-F12B-44D4-8CD7-7B1F2CEFA076}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D5CB751B-F12B-44D4-8CD7-7B1F2CEFA076}.Release|Any CPU.Build.0 = Release|Any CPU
+		{86A5F1CD-4238-454A-A48C-611F1055DFD6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{86A5F1CD-4238-454A-A48C-611F1055DFD6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{86A5F1CD-4238-454A-A48C-611F1055DFD6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{86A5F1CD-4238-454A-A48C-611F1055DFD6}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
