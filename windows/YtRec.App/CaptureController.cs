@@ -18,7 +18,6 @@ public sealed class CaptureController
     private readonly string _ffmpegPath;
 
     private Win32PlayerHost? _player;
-    private Win32PlayerCover? _cover;
     private MonitorWindow? _monitor;
     private RecordingSession? _session;
     private string _segmentsDir = "";
@@ -78,10 +77,9 @@ public sealed class CaptureController
         // a whole-window capture that includes the watch page's letterboxing (pillarbox on vertical).
         for (int i = 0; i < 20 && _player.VideoRectFrac is null; i++) await Task.Delay(200);
 
-        // The player now sits 99.99% off-screen (see Win32PlayerHost.Resize), so the user never sees it — no
-        // opaque lid needed (Mac-aligned). Kept as a fallback if a future WGC/driver clips off-screen windows.
-        // _cover = new Win32PlayerCover();
-        // _cover.Show(_player.Hwnd, win.Width, win.Height);
+        // The player sits 99.99% off-screen (Win32PlayerHost.Resize) and is click-through, so the user never
+        // sees or touches it — the Mac off-screen experience, no opaque lid. Verified on real Win11 that WGC
+        // still captures the full window's surface.
 
         // Window-capture the Win32-hosted WebView2 (works occluded/in the background), crop to the inline video
         // region (keeps the video inline → composites into the capturable surface, not a black overlay), then
@@ -152,10 +150,8 @@ public sealed class CaptureController
     private void CloseWindows()
     {
         try { _monitor?.CloseMonitor(); } catch { }
-        try { _cover?.Close(); } catch { }
         try { _player?.Close(); } catch { }
         _monitor = null;
-        _cover = null;
         _player = null;
     }
 }

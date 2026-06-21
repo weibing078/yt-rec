@@ -47,7 +47,9 @@ public sealed class Win32PlayerHost
         // background/coverable: NOT topmost, WS_EX_NOACTIVATE (no focus-steal), sent to the back. WGC
         // window-capture keeps capturing it while it's covered by the user's windows (verified), so the user
         // works over it (mac §4 occludable). Placed at top-left behind everything.
-        Hwnd = CreateWindowEx(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, ClassName, "YT Rec Player",
+        // WS_EX_TRANSPARENT → click-through: the 2 px on-screen sliver can never be accidentally clicked by the
+        // user (events pass to whatever is behind). NOACTIVATE = no focus-steal; TOOLWINDOW = no taskbar/Alt-Tab.
+        Hwnd = CreateWindowEx(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT, ClassName, "YT Rec Player",
             WS_POPUP, 0, 0, Width, Height, IntPtr.Zero, IntPtr.Zero, hInst, IntPtr.Zero);
         if (Hwnd == IntPtr.Zero) throw new InvalidOperationException("CreateWindowEx failed: " + Marshal.GetLastWin32Error());
         ShowWindow(Hwnd, SW_SHOWNA);
@@ -126,7 +128,7 @@ public sealed class Win32PlayerHost
     // ── Win32 interop ──
     private const string ClassName = "YtRecPlayerHostWindow";
     private const uint WS_POPUP = 0x80000000;
-    private const uint WS_EX_NOACTIVATE = 0x08000000, WS_EX_TOOLWINDOW = 0x00000080;
+    private const uint WS_EX_NOACTIVATE = 0x08000000, WS_EX_TOOLWINDOW = 0x00000080, WS_EX_TRANSPARENT = 0x00000020;
     private const int SW_SHOWNA = 8;
     private const int SM_CXSCREEN = 0, SM_CYSCREEN = 1;
     private static readonly IntPtr HWND_BOTTOM = new(1);

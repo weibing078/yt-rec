@@ -51,6 +51,17 @@ public static class PlayerAssets
         (function () {
           function post(o) { try { window.chrome.webview.postMessage(o); } catch (e) {} }
           function player() { return document.getElementById('movie_player'); }
+          // Guarantee a clean recording = the VIDEO only, never the YouTube UI. Hide every player overlay so a
+          // progress bar / title / end-screen card / spinner / watermark can't land in a frame at any moment.
+          try {
+            var st = document.createElement('style');
+            st.textContent = '.ytp-chrome-bottom,.ytp-chrome-top,.ytp-chrome-controls,.ytp-gradient-bottom,' +
+              '.ytp-gradient-top,.ytp-ce-element,.ytp-endscreen-content,.ytp-pause-overlay,.ytp-watermark,' +
+              '.ytp-cards-teaser,.ytp-ce-covering-overlay,.iv-branding,.annotation,.ytp-spinner,.ytp-tooltip,' +
+              '.ytp-bezel,.ytp-doubletap-ui-legacy,.ytp-show-cards-title,.ytp-paid-content-overlay' +
+              '{display:none!important;opacity:0!important}';
+            (document.documentElement || document.body).appendChild(st);
+          } catch (e) {}
           function ensureTheater() {
             try {
               var flexy = document.querySelector('ytd-watch-flexy');
