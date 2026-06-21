@@ -37,15 +37,22 @@ C# Core: 113 tests green; Capture/Probe/Cli compile (EnableWindowsTargeting).**
 5. **No yellow border (win)** — `RequestAccessAsync(Borderless)` + `IsBorderRequired=false` (SDK→22621, floor Win10).
 
 ### Verification status for this session's work
-- ✅ **Win App compiles** with these changes — `windows-build` CI green on a real Windows runner (App + portable artifact).
+- ✅ **Win App compiles + RUNS** — `windows-build` CI green on a real Windows runner; App `--autorecord`
+  **runtime-verified on real Win11** (machine `home`, build 26200): YouTube video → clean **1920×1080**
+  H.264+AAC, **real video content** (frame-verified Big Buck Bunny), 2519 kb/s, 12 s, audio isolated.
+- ✅ **Win GUI launches** (was crashing) — fixed the `resources.pri` packaging bug; Mica backdrop added.
 - ✅ **macOS runtime verified on this Mac** — real SCK off-screen capture → exact **1080×1920** (portrait)
   and **1920×1080** (landscape) H.264 MP4 (the vertical mechanism, hardware-proven).
 - ✅ **ffmpeg `ScalePadFilter`** output dims — 5 cases exact target, SAR 1:1 (incl. portrait + 4:3 pillarbox).
-- ⏳ **Win live-WGC runtime — pending the physical Win11 box (currently offline; no headless substitute).**
-  Record landscape → **true 1080p** (not 720p); vertical → **1080×1920**; **lid hides** the player on a bare
-  single-monitor desktop; **no yellow border** on screen or in the file; small/hi-DPI screens (1366×768,
-  150%/200%) capture full-frame (no overhang clip); fill→no MPO-overlay blank. One-command runbook:
-  [RUNTIME-QA-geometry.md](RUNTIME-QA-geometry.md) §A.
+- 🔑 **Key win-runtime lesson:** a fullscreen-filled video records BLACK (WGC can't see the GPU overlay);
+  the working path is an INLINE player (theater mode) cropped to the video rect + scale-pad to target.
+
+### Remaining for a shippable Windows build
+- ⏳ **Vertical (9:16) on real Win11** — mechanism proven (portrait `FitWindow` + crop + scale-pad); not yet
+  recorded on hardware. Runbook [RUNTIME-QA-geometry.md](RUNTIME-QA-geometry.md) §A.
+- ⏳ **Bundle `yt-dlp.exe` + `ffmpeg.exe`** in the portable build (the app warns "missing tools" without them;
+  recording/download need them). Mac bundles them in `Vendor/bin`; the Win portable zip does not yet.
+- ⏳ **Lid / no-border / small-screen** visual confirms on hardware (recording itself is verified).
 
 ## Remaining (not blocking the core result)
 - Interactively eyeball the **GUI** (Record button, floating monitor preview, settings dialog,
