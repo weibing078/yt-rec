@@ -26,14 +26,13 @@ public sealed class SessionResult
 /// 2-input live-pipe deadlock that a single muxing ffmpeg hits.) The machine is kept awake for the session.</summary>
 public sealed class RecordingSession : IDisposable
 {
-    private readonly IntPtr _monitor;
-    private readonly int _cropX, _cropY, _cropW, _cropH;
+    private readonly IntPtr _hwnd;
     private readonly AudioLoopbackCapture _audio;
     private readonly string _ffmpegPath;
     private readonly string _segmentsDir;
     private readonly string _audioPcmPath;
     private readonly int _fps;
-    private int _monW, _monH;
+    private int _capW, _capH;
 
     private readonly SessionGate _gate = new();
     private readonly SessionResult _result = new();
@@ -58,11 +57,15 @@ public sealed class RecordingSession : IDisposable
     public int PreviewEveryNthFrame { get; set; } = 5;
     private int _previewCounter;
 
-    public RecordingSession(IntPtr monitor, (int X, int Y, int W, int H) crop, AudioLoopbackCapture audio,
+    /// <summary>Optional crop as fractions of the captured window (x, y, w, h) — used to record just the video
+    /// region of the watch page (a fullscreen-sized video would hit a hardware overlay we can't capture).</summary>
+    public (double X, double Y, double W, double H)? CropFrac { get; set; }
+    private int _cropX, _cropY;
+
+    public RecordingSession(IntPtr captureHwnd, AudioLoopbackCapture audio,
         string ffmpegPath, string segmentsDir, string audioPcmPath, int fps = 30)
     {
-        _monitor = monitor;
-        (_cropX, _cropY, _cropW, _cropH) = crop;
+        _hwnd = captureHwnd;
         _audio = audio;
         _ffmpegPath = ffmpegPath;
         _segmentsDir = segmentsDir;
@@ -79,9 +82,10 @@ public sealed class RecordingSession : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(_audioPcmPath)!);
         _awake = new SleepPrevention(keepDisplayOn: true);
 
-        // Monitor capture (not window capture): WGC window-capture can't see a WebView2's video swapchain,
-        // so we capture the whole monitor and crop to the player window's rectangle.
-        var item = CaptureInterop.CreateForMonitor(_monitor);
+        // Window capture of the Win32-hosted WebView2 (a real windowed HWND, unlike the visual-hosted WinUI
+        // WebView2 control). WGC window-capture keeps working when the window is occluded/in the background —
+        // that's what lets the user keep working while it records (mac §4/§5), no monitor-wide capture needed.
+        var item = CaptureInterop.CreateForWindow(_hwnd);
         (_d3d, var device) = Direct3D11Helper.CreateDevice();
         _context = _d3d.ImmediateContext;
         _pool = Direct3D11CaptureFramePool.CreateFreeThreaded(
@@ -120,18 +124,29 @@ public sealed class RecordingSession : IDisposable
 
             using var src = FrameReadback.SurfaceToTexture(frame.Surface);
             var desc = src.Description;
-            int w = (int)desc.Width, h = (int)desc.Height; // full monitor size
+            int w = (int)desc.Width, h = (int)desc.Height; // captured window size
 
             if (_ff is null)
             {
-                _monW = w; _monH = h;
-                _result.Width = Math.Min(_cropW, w - _cropX) & ~1;   // crop clamped to the monitor, even dims
-                _result.Height = Math.Min(_cropH, h - _cropY) & ~1;
+                _capW = w; _capH = h;
+                if (CropFrac is (double fx, double fy, double fw, double fh))
+                {
+                    _cropX = Math.Clamp((int)(fx * w), 0, w - 2);
+                    _cropY = Math.Clamp((int)(fy * h), 0, h - 2);
+                    _result.Width = Math.Clamp((int)(fw * w), 2, w - _cropX) & ~1;
+                    _result.Height = Math.Clamp((int)(fh * h), 2, h - _cropY) & ~1;
+                }
+                else
+                {
+                    _cropX = 0; _cropY = 0;
+                    _result.Width = w & ~1;   // even dims for yuv420p (drop the odd last row/col)
+                    _result.Height = h & ~1;
+                }
                 _staging = _d3d!.CreateTexture2D(FrameReadback.StagingDesc(w, h, desc.Format));
                 _frameBuf = new byte[_result.Width * _result.Height * 4];
                 StartVideoFfmpeg(_result.Width, _result.Height);
             }
-            if (w != _monW || h != _monH) return; // monitor resolution changed mid-record
+            if (w != _capW || h != _capH) return; // window resized mid-record — skip the odd frame
 
             // Session-gate (mac §2): drop video until the first audio sample has arrived, then accept all.
             // We gate on "audio started" (a boolean), NOT a cross-clock tick compare — the audio QPC and the

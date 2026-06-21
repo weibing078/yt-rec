@@ -11,11 +11,15 @@ namespace YtRec.App;
 /// topmost/visible at the top-left; the recorder captures its monitor and crops to this rectangle.</summary>
 public sealed class Win32PlayerHost
 {
-    public const int Width = 1280, Height = 720;
+    public const int Width = 1920, Height = 1080;
 
     public IntPtr Hwnd { get; private set; }
     public uint BrowserProcessId { get; private set; }
     public event Action? Ended;
+
+    /// <summary>The video element's rect as fractions of the window (x, y, w, h), reported by the page JS —
+    /// used to crop the captured page down to just the video. Null until the player has laid out.</summary>
+    public (double X, double Y, double W, double H)? VideoRectFrac { get; private set; }
 
     private CoreWebView2Controller? _controller;
     private CoreWebView2? _core;
@@ -25,11 +29,15 @@ public sealed class Win32PlayerHost
     {
         EnsureClass();
         var hInst = GetModuleHandle(null);
-        Hwnd = CreateWindowEx(WS_EX_TOPMOST, ClassName, "YT Rec Player",
-            WS_POPUP | WS_VISIBLE, 0, 0, Width, Height, IntPtr.Zero, IntPtr.Zero, hInst, IntPtr.Zero);
+        // On-screen (must be — Windows won't composite a fully off-screen window, so WGC gets no frames), but
+        // background/coverable: NOT topmost, WS_EX_NOACTIVATE (no focus-steal), sent to the back. WGC
+        // window-capture keeps capturing it while it's covered by the user's windows (verified), so the user
+        // works over it (mac §4 occludable). Placed at top-left behind everything.
+        Hwnd = CreateWindowEx(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW, ClassName, "YT Rec Player",
+            WS_POPUP, 0, 0, Width, Height, IntPtr.Zero, IntPtr.Zero, hInst, IntPtr.Zero);
         if (Hwnd == IntPtr.Zero) throw new InvalidOperationException("CreateWindowEx failed: " + Marshal.GetLastWin32Error());
-        ShowWindow(Hwnd, SW_SHOW);
-        SetForegroundWindow(Hwnd);
+        ShowWindow(Hwnd, SW_SHOWNA);
+        SetWindowPos(Hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 
         var options = new CoreWebView2EnvironmentOptions { AdditionalBrowserArguments = PlayerAssets.BrowserArguments };
         var env = await CoreWebView2Environment.CreateWithOptionsAsync(null, userDataFolder, options);
@@ -48,7 +56,10 @@ public sealed class Win32PlayerHost
             try
             {
                 using var doc = JsonDocument.Parse(e.WebMessageAsJson);
-                if (doc.RootElement.TryGetProperty("state", out var s) && s.GetString() == "ended") Ended?.Invoke();
+                var root = doc.RootElement;
+                if (root.TryGetProperty("state", out var s) && s.GetString() == "ended") Ended?.Invoke();
+                if (root.TryGetProperty("rect", out var r) && r.ValueKind == JsonValueKind.Array && r.GetArrayLength() == 4)
+                    VideoRectFrac = (r[0].GetDouble(), r[1].GetDouble(), r[2].GetDouble(), r[3].GetDouble());
             }
             catch { }
         };
@@ -80,8 +91,11 @@ public sealed class Win32PlayerHost
 
     // ── Win32 interop ──
     private const string ClassName = "YtRecPlayerHostWindow";
-    private const uint WS_POPUP = 0x80000000, WS_VISIBLE = 0x10000000, WS_EX_TOPMOST = 0x00000008;
-    private const int SW_SHOW = 5;
+    private const uint WS_POPUP = 0x80000000;
+    private const uint WS_EX_NOACTIVATE = 0x08000000, WS_EX_TOOLWINDOW = 0x00000080;
+    private const int SW_SHOWNA = 8;
+    private static readonly IntPtr HWND_BOTTOM = new(1);
+    private const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
 
     private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
     private static readonly WndProcDelegate s_wndProc = (h, m, w, l) => DefWindowProc(h, m, w, l);
@@ -126,6 +140,6 @@ public sealed class Win32PlayerHost
     [DllImport("user32.dll")] private static extern IntPtr DefWindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")] private static extern bool DestroyWindow(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr GetModuleHandle(string? name);
 }

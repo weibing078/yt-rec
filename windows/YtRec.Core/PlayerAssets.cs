@@ -9,10 +9,11 @@ public static class PlayerAssets
     /// <summary>Chromium flags for the WebView2 environment so an occluded/off-screen player keeps
     /// rendering video frames and decoding audio (passed as AdditionalBrowserArguments).</summary>
     public const string BrowserArguments =
-        // Keep rendering while occluded/backgrounded, and disable the hardware video overlay (MPO) so the
-        // video composites into the window's surface that WGC captures.
+        // Keep rendering while occluded/backgrounded, disable the hardware video overlay (MPO) so the video
+        // composites into the window's surface that WGC captures, and allow autoplay WITH sound (no gesture).
         "--disable-features=CalculateNativeWinOcclusion,DirectCompositionVideoOverlays,UseSurfaceLayerForVideo " +
         "--disable-direct-composition-video-overlays " +
+        "--autoplay-policy=no-user-gesture-required " +
         "--disable-backgrounding-occluded-windows " +
         "--disable-renderer-backgrounding " +
         "--disable-background-timer-throttling";
@@ -23,6 +24,15 @@ public static class PlayerAssets
     /// <summary>Resolve any YouTube URL to its watch-page URL, or null if it isn't a recognizable video.</summary>
     public static string? WatchUrlFrom(string rawUrl) =>
         YtUrl.VideoId(rawUrl) is string id ? WatchUrl(id) : null;
+
+    /// <summary>Embed-player URL — just the video, no page chrome/sidebar/comments — so the captured window
+    /// is clean video (mac §5 "you get the video, not the browser"). Hides controls and autoplays.</summary>
+    public static string EmbedUrl(string videoId) =>
+        $"https://www.youtube.com/embed/{videoId}?autoplay=1&controls=0&playsinline=1&rel=0&modestbranding=1";
+
+    /// <summary>Resolve any YouTube URL to its embed-player URL (the capture target), or null.</summary>
+    public static string? EmbedUrlFrom(string rawUrl) =>
+        YtUrl.VideoId(rawUrl) is string id ? EmbedUrl(id) : null;
 
     /// <summary>Injected on NavigationCompleted: force playback, unmute so audio decodes, and report the
     /// stream ending back to the host via window.chrome.webview.postMessage({type:'ytrec', state:'ended'}).
@@ -39,7 +49,21 @@ public static class PlayerAssets
           function report(state) {
             try { window.chrome.webview.postMessage({ type: 'ytrec', state: state }); } catch (e) {}
           }
+          function reportRect() {
+            // Report the video element's rect as FRACTIONS of the window (DPI-independent), so the recorder
+            // can crop the captured page down to just the video. A large/fullscreen video gets pushed to a
+            // hardware overlay that capture can't see, so we leave the player inline and crop instead.
+            try {
+              var v = document.querySelector('video');
+              if (!v) return;
+              var r = v.getBoundingClientRect();
+              var W = window.innerWidth, H = window.innerHeight;
+              if (r.width > 40 && r.height > 40 && W > 0 && H > 0)
+                window.chrome.webview.postMessage({ type: 'ytrec', rect: [r.left / W, r.top / H, r.width / W, r.height / H] });
+            } catch (e) {}
+          }
           start(); setTimeout(start, 1000); setTimeout(start, 3000);
+          setTimeout(reportRect, 1500); setInterval(reportRect, 2000);
           var v = document.querySelector('video');
           if (v) v.addEventListener('ended', function () { report('ended'); });
           setInterval(function () {

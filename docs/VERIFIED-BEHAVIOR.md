@@ -227,6 +227,23 @@ and **[PARITY]** for things the Windows port must replicate.
     takes a `CoreWebView2ControllerWindowReference` (not `IntPtr`) and `Controller.Bounds` is
     `Windows.Foundation.Rect` (not `System.Drawing.Rectangle`).
 
+- **[VERIFIED] Background recording (mac §4/§5 "work while it records").** With the Win32-hosted WebView2,
+  WGC **window-capture keeps capturing while the player is occluded/in the background** (verified: recorded
+  the video while a maximized Notepad fully covered it). So the player is created NOT-topmost, `WS_EX_NOACTIVATE`,
+  sent to `HWND_BOTTOM` — the user covers it with their work and it still records.
+- **[PITFALL] On-screen is required.** A fully off-screen window (even at a 1px sliver) is NOT composited →
+  window-capture gets no frames (Windows ≠ macOS, which composites off-screen windows). The player must stay
+  on a monitor; "hidden" therefore means "covered", not "off-screen".
+- **[PITFALL → SOLVED] Fullscreen/large video → hardware overlay → uncapturable.** When the YouTube video is
+  made to fill the window (the `/embed` player, or CSS sizing #movie_player to 100vw/100vh), Chromium pushes
+  it to a hardware overlay (MPO) that **neither WGC window/monitor-capture NOR a GDI screenshot can see — it
+  records as black.** Confirmed independent of `--disable-gpu`, `--disable-gpu-compositing`, and the
+  DirectComposition/MPO-overlay flags. **The inline watch-page player composites normally and captures.**
+  **Fix for clean "just the video":** keep the inline watch page, have the page JS report the `<video>` rect
+  as **fractions of the window** (DPI-independent), and crop the captured frame to it. Result: clean video,
+  no page chrome — 1336×752 at a 1920×1080 player window, decode 0 errors. A bigger player window → higher-res
+  crop, but too big re-triggers the overlay; 1920×1080 is the sweet spot found.
+
 ## 11. macOS-specific facts (context, not for Windows)
 
 - Permission is the merged **"Screen & System Audio Recording"** (macOS 14+);

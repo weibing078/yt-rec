@@ -52,14 +52,12 @@ public sealed class CaptureController
         _monitor.StopRequested += () => _ = StopAsync();
         _monitor.Activate();
 
-        // Capture the player's monitor and crop to its rectangle (WGC window-capture can't see the WebView2
-        // video swapchain). The player is topmost/visible at a known rect.
-        var hmon = WindowFinder.MonitorForWindow(_player.Hwnd);
-        var crop = WindowFinder.CropRect(_player.Hwnd, hmon);
-        Status?.Invoke($"capture crop=({crop.X},{crop.Y}) {crop.W}x{crop.H}");
-        _session = new RecordingSession(hmon, crop, audio, _ffmpegPath, _segmentsDir, _audioPcmPath, fps)
+        // Window-capture the Win32-hosted WebView2 — works even when it's occluded/in the background — and
+        // crop to the video region (reported by the page JS) so the output is just the video, not the page.
+        _session = new RecordingSession(_player.Hwnd, audio, _ffmpegPath, _segmentsDir, _audioPcmPath, fps)
         {
             OnPreviewFrame = (buf, w, h) => _monitor?.UpdatePreview(buf, w, h),
+            CropFrac = _player.VideoRectFrac,
         };
         _player.Ended += () => _ui.TryEnqueue(() => _ = StopAsync());
 
