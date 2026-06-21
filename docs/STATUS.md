@@ -4,12 +4,13 @@
 > in [shared/spec/parity-matrix.md](../shared/spec/parity-matrix.md).
 
 ## One line
-**The Windows app is a complete, usable, no-install app — the whole GUI flow is verified on real
-Win11.** Driving the actual MainWindow via UI Automation: paste URL → click **側錄** → records clean
-**1920×1080** (or **1080×1920** vertical, full-frame) real video + isolated audio, the live page is
-**hidden behind the lid**, the **viewfinder** shows a live preview, click **停止** → the file lands in
-the **recent list**; the **下載** button downloads a VOD too. Mica window; binaries bundled (runs from a
-fresh extract). Both platforms now record content-driven 1080p; Mac verified via SCK. Signing skipped per owner.
+**Launch-ready: the Windows app is a polished, no-install product — full GUI flow verified on real Win11.**
+Paste URL → click **側錄** → records clean **1920×1080** (or **1080×1920** vertical, full-frame), **pure
+video with no YouTube UI** (all player chrome hidden), **complete (not cropped)**, isolated audio. The
+capture window is **invisible like Mac** (pushed off-screen, click-through — no lid, no visible YouTube
+page; only the small viewfinder shows). Click **停止** → file in the **recent list**; **下載** grabs a VOD.
+Mica window + real app icon; binaries bundled (runs from a fresh extract). Mac records 1080p+vertical via
+SCK. Signing skipped per owner.
 
 ## Verified end-to-end on real Win11 (machine `home`, build 26200)
 - **Killer feature — per-process audio isolation = 33 dB** (target tone −24 dB while another
