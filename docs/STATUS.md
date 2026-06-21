@@ -36,12 +36,16 @@ C# Core: 113 tests green; Capture/Probe/Cli compile (EnableWindowsTargeting).**
    z-order (hides it on a bare desktop, never covers the user's other windows, never in the recording).
 5. **No yellow border (win)** — `RequestAccessAsync(Borderless)` + `IsBorderRequired=false` (SDK→22621, floor Win10).
 
-### Verification debt for this session's work (needs the Win box / a desktop session)
-- **Win App first compile with these changes** — push → `windows-build` CI (App can't build on Mac).
-- **Win runtime**: record landscape → **true 1080p** (not 720p); vertical → **1080×1920**; **lid hides** the
-  player on a bare single-monitor desktop; **no yellow border** on screen or in the file; small/hi-DPI screens
-  (1366×768, 150%/200%) capture full-frame (no overhang clip); fill→no MPO-overlay blank.
-- **Mac runtime**: record a vertical video → confirm a true 1080×1920 file (not a letterboxed 16:9).
+### Verification status for this session's work
+- ✅ **Win App compiles** with these changes — `windows-build` CI green on a real Windows runner (App + portable artifact).
+- ✅ **macOS runtime verified on this Mac** — real SCK off-screen capture → exact **1080×1920** (portrait)
+  and **1920×1080** (landscape) H.264 MP4 (the vertical mechanism, hardware-proven).
+- ✅ **ffmpeg `ScalePadFilter`** output dims — 5 cases exact target, SAR 1:1 (incl. portrait + 4:3 pillarbox).
+- ⏳ **Win live-WGC runtime — pending the physical Win11 box (currently offline; no headless substitute).**
+  Record landscape → **true 1080p** (not 720p); vertical → **1080×1920**; **lid hides** the player on a bare
+  single-monitor desktop; **no yellow border** on screen or in the file; small/hi-DPI screens (1366×768,
+  150%/200%) capture full-frame (no overhang clip); fill→no MPO-overlay blank. One-command runbook:
+  [RUNTIME-QA-geometry.md](RUNTIME-QA-geometry.md) §A.
 
 ## Remaining (not blocking the core result)
 - Interactively eyeball the **GUI** (Record button, floating monitor preview, settings dialog,

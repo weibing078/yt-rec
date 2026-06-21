@@ -11,9 +11,11 @@ Acceptance tests for the "content-driven 1080p + vertical + hide window" work (c
 | Compile — macOS app | ✅ `swift build` |
 | Compile — full Windows incl. **WinUI App** + portable artifact | ✅ CI `windows-build` on a real Windows runner |
 | Runtime — ffmpeg `ScalePadFilter` output dims (5 cases, incl. portrait & 4:3 pillarbox) | ✅ exact target, SAR 1:1 |
+| Runtime — **macOS SCK** off-screen capture → MP4 dims | ✅ **portrait 1080×1920 & landscape 1920×1080** (real SCK on this Mac; H.264, SAR 1:1) |
 
-What's left needs **live capture hardware** (the physical Win11 box must be powered on;
-the Mac needs a logged-in GUI session with Screen-Recording permission).
+**macOS runtime is verified** (§B below, done). What's left is **Windows live-WGC capture**,
+which needs the physical Win11 box powered on (§A) — there is no headless substitute (CI
+runners have no interactive desktop, so WGC window-capture yields no frames there).
 
 ---
 
