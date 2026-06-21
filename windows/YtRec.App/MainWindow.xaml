@@ -14,13 +14,8 @@
         <!-- ── Custom title bar: brand + commands left, system caption buttons right ── -->
         <Grid x:Name="AppTitleBar" Grid.Row="0" Height="40" Padding="12,0,0,0"
               ColumnDefinitions="Auto,Auto,Auto,Auto,*">
-            <Border Grid.Column="0" Width="22" Height="22" CornerRadius="6"
-                    Background="{ThemeResource ControlFillColorSecondaryBrush}"
-                    BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}" BorderThickness="1"
-                    VerticalAlignment="Center">
-                <Polygon Points="0,0 8,5 0,10" Fill="{ThemeResource BrandSignalBrush}"
-                         HorizontalAlignment="Center" VerticalAlignment="Center" Margin="2,0,0,0"/>
-            </Border>
+            <Image Grid.Column="0" Source="Assets/AppIcon.png" Width="20" Height="20"
+                   VerticalAlignment="Center"/>
             <TextBlock Grid.Column="1" Text="YT Rec" VerticalAlignment="Center" Margin="10,0,12,0"
                        FontSize="13" FontWeight="SemiBold"/>
             <Button Grid.Column="2" x:Uid="PermissionButton" Click="OnPermissions"

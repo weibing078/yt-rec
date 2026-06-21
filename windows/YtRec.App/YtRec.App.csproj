@@ -20,6 +20,7 @@
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <DefaultLanguage>en-US</DefaultLanguage>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <!-- Unpackaged self-contained WinUI looks for the app PRI named exactly resources.pri at runtime
          (microsoft-ui-xaml#10856); default AssemblyName.pri is not found → every window throws
          "Cannot locate resource ms-appx:///*.xaml" (0x802B000A). -->
@@ -38,6 +39,8 @@
 
   <ItemGroup>
     <PRIResource Include="Strings\**\*.resw" />
+    <Content Include="Assets\AppIcon.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\AppIcon.png" />
   </ItemGroup>
 
   <!-- Bundle yt-dlp.exe + ffmpeg.exe into <appdir>/vendor/bin so BinaryLocator finds them at runtime

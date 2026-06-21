@@ -26,6 +26,7 @@ public sealed partial class MainWindow : Window
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(DragRegion);
         Title = "YT Rec";
+        try { AppWindow.SetIcon("Assets\\AppIcon.ico"); } catch { /* icon optional */ }
         AppWindow.Resize(new SizeInt32(480, 720));
 
         // Disaster recovery: rebuild any side-record interrupted by a crash/kill (off the UI thread).
