@@ -49,9 +49,18 @@ public sealed class CaptureController
 
         var audio = MakeAudio(_player.BrowserProcessId);
 
-        _monitor = new MonitorWindow(title);
-        _monitor.StopRequested += () => _ = StopAsync();
-        _monitor.Activate();
+        // The floating viewfinder is optional — a failure to open it must never abort the recording.
+        try
+        {
+            _monitor = new MonitorWindow(title);
+            _monitor.StopRequested += () => _ = StopAsync();
+            _monitor.Activate();
+        }
+        catch (Exception ex)
+        {
+            _monitor = null;
+            Status?.Invoke("監看小窗開啟失敗，仍繼續錄製：" + ex.Message);
+        }
 
         // Content-driven output geometry (screen/DPI-independent): from the source video dims pick
         // landscape/portrait + the exact output size, size the on-screen capture window to the largest box of
@@ -82,7 +91,7 @@ public sealed class CaptureController
         await RecordingSession.RequestBorderlessAsync(); // drop the yellow WGC border before capture
         _session.Start();
         IsRecording = true;
-        _monitor.SetStatus(AudioCapability.IsolatedAudioSupported(OsBuild)
+        _monitor?.SetStatus(AudioCapability.IsolatedAudioSupported(OsBuild)
             ? "錄製中（只錄這個串流的聲音）"
             : "錄製中（此電腦會錄到全系統聲音）");
         Status?.Invoke("錄製中");

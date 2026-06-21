@@ -28,11 +28,7 @@
                        FontSize="11" Foreground="#909090" TextTrimming="CharacterEllipsis"/>
             <Button Grid.Column="1" x:Name="ShrinkButton" Click="OnShrink" Content="–"
                     Width="34" Padding="0" ToolTipService.ToolTip="縮到背景 / Shrink"/>
-            <Button Grid.Column="2" Click="OnStop" CornerRadius="6">
-                <Button.Resources>
-                    <SolidColorBrush x:Key="ButtonBackground" Color="#FF2E45"/>
-                    <SolidColorBrush x:Key="ButtonForeground" Color="White"/>
-                </Button.Resources>
+            <Button Grid.Column="2" Click="OnStop" CornerRadius="6" Background="#FF2E45" Foreground="White">
                 <StackPanel Orientation="Horizontal" Spacing="5">
                     <FontIcon Glyph="&#xE71A;" FontSize="12" Foreground="White"/>
                     <TextBlock Text="停止 / Stop" FontSize="12"/>
