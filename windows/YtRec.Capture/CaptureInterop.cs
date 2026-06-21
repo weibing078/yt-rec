@@ -21,17 +21,23 @@ internal static class CaptureInterop
 
     public static GraphicsCaptureItem CreateForWindow(IntPtr hwnd)
     {
-        var factory = ActivationFactory.Get("Windows.Graphics.Capture.GraphicsCaptureItem");
-        var interop = factory.AsInterface<IGraphicsCaptureItemInterop>();
         var iid = GraphicsCaptureItemIid;
-        var itemPtr = interop.CreateForWindow(hwnd, ref iid);
-        try
-        {
-            return GraphicsCaptureItem.FromAbi(itemPtr);
-        }
-        finally
-        {
-            Marshal.Release(itemPtr);
-        }
+        var itemPtr = Interop().CreateForWindow(hwnd, ref iid);
+        try { return GraphicsCaptureItem.FromAbi(itemPtr); }
+        finally { Marshal.Release(itemPtr); }
+    }
+
+    public static GraphicsCaptureItem CreateForMonitor(IntPtr hmonitor)
+    {
+        var iid = GraphicsCaptureItemIid;
+        var itemPtr = Interop().CreateForMonitor(hmonitor, ref iid);
+        try { return GraphicsCaptureItem.FromAbi(itemPtr); }
+        finally { Marshal.Release(itemPtr); }
+    }
+
+    private static IGraphicsCaptureItemInterop Interop()
+    {
+        var factory = ActivationFactory.Get("Windows.Graphics.Capture.GraphicsCaptureItem");
+        return factory.AsInterface<IGraphicsCaptureItemInterop>();
     }
 }

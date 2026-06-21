@@ -175,6 +175,58 @@ and **[PARITY]** for things the Windows port must replicate.
   extract orchestration decisions into pure "enum-in → enum-out" functions so the
   hard logic gets L1 coverage with no device. macOS reached **163 green tests**.
 
+## 10b. Windows capture — verified on real Win11 (build 26200)
+
+- **[VERIFIED]** The real-time recorder (`ContinuousRecorder`: WGC frame → `IDirect3DDxgiInterfaceAccess`
+  → ID3D11 staging-texture readback → BGRA piped to ffmpeg `-f rawvideo` → MP4) works end to end on
+  real hardware. A 10 s capture of a live window → H.264/yuv420p MP4, full-decode 0 errors.
+- **[PITFALL]** A captured window can be **odd-sized** (seen: 1115×628). `libx264`/yuv420p require even
+  dimensions → "width not divisible by 2" and the encode aborts (0-byte file). **Fix:** ffmpeg
+  `-vf crop=trunc(iw/2)*2:trunc(ih/2)*2` (drops ≤1 px). Applied to every encode path.
+- **[PITFALL]** WGC delivers frames at the window's **variable** render rate (on-change), but rawvideo is
+  fed to ffmpeg at a fixed `-framerate`. Writing every WGC frame makes the file play at the wrong speed
+  (seen: 356 frames over 10 s muxed as 15 fps → a 23.7 s slow-motion file). **Fix:** real-time **CFR
+  pacing** — emit the latest frame as many times as wall-clock says are due (duplicate when idle, drop
+  when faster than fps). After the fix a 10 s capture is exactly 10.00 s / 150 frames @ 15 fps.
+- **[PARITY]** Both fixes live in `ContinuousRecorder` + `RecordingSession`; any new encode path must keep
+  them. (The live A/V `RecordingSession` adds the §2 session-gate + WASAPI audio on top.)
+
+- **[VERIFIED]** WASAPI loopback (`AudioLoopbackCapture`, hand-rolled COM) works on real Win11: system
+  loopback and **per-process loopback** (`ActivateAudioInterfaceAsync` + completion handler, targeting a
+  PID's tree) both capture 48 kHz/2ch/16-bit PCM. The completion-handler-kept-rooted pattern is correct.
+- **[VERIFIED] Per-process audio isolation (the killer feature)** — mac §1 method on Win11: target process
+  played 440 Hz, another process played 1000 Hz (system-loopback control confirmed BOTH at −24.1 dB).
+  Process-loopback on the target's PID captured 440 Hz at −24.1 dB but the other process's 1000 Hz at only
+  **−57.4 dB → 33 dB of isolation** (noise floor). "Record only this stream's audio" holds on Windows.
+- **[PARITY]** Isolation is by **process tree**: target the WebView2 *browser* PID (root); give the player
+  its own user-data-folder so no other audio-rendering process shares the tree.
+
+## 10c. Integrated A/V on Win11 — what works + the WebView2 capture wall
+
+- **[VERIFIED]** The full live A/V path runs end to end on real Win11 (App `--autorecord`): WebView2 plays a
+  YouTube URL, process-loopback captures its (isolated) audio (mean −18.9 dB — real), and the recorder muxes
+  a **valid, decode-clean MP4** (h264 1280×720 30 fps + AAC 48 kHz, duration matches real time). The
+  session-gate, CFR pacing, HLS-fMP4 segments, finalize-mux, and disaster recovery all work.
+- **[PITFALL]** Every ffmpeg `Process` MUST set `CreateNoWindow = true`. Otherwise it pops a console window
+  (Windows Terminal on Win11) that lands over the captured area and gets recorded.
+- **[PITFALL]** ffmpeg's HLS muxer writes `-hls_fmp4_init_filename` relative to its **CWD**, not the playlist
+  dir → set `WorkingDirectory` to the segments dir and use bare output names, else "Permission denied".
+- **[PITFALL]** The audio QPC (IAudioCaptureClient) and WGC `SystemRelativeTime` do **not** share an epoch —
+  don't gate video by comparing them (drops every frame). Gate on "first audio sample has arrived" (boolean).
+- **[PITFALL]** WASAPI COM objects (IAudioClient) are **not** apartment-agile: acquire+init+run them on a
+  dedicated **MTA** thread. Acquiring on the WinUI UI thread (STA) → E_NOINTERFACE on first call.
+- **[VERIFIED — RESOLVED] Full Mac parity on Win11.** The WinUI 3 `WebView2` control is visual-hosted
+  (composition), so its rendered video never reaches a WGC-capturable surface (window-capture = 1 static
+  frame; monitor-capture of its rect = blank/white, independent of every GPU/overlay flag tried). **Fix that
+  works:** host the WebView2 in a plain **Win32 window** via `CoreWebView2Environment.CreateCoreWebView2ControllerAsync(
+  CoreWebView2ControllerWindowReference.CreateFromWindowHandle(hwnd))` (windowed, not visual). That HWND
+  renders normally; the recorder monitor-captures + crops to its rect. End-to-end result on real Win11:
+  a 1280×720/30fps H.264 + AAC MP4 of the **actual YouTube video** (frame verified — Rick Astley playing)
+  with the **isolated** stream audio (−19 dB), duration matches real time, full-decode 0 errors.
+  - **[PITFALL]** The WinAppSDK WebView2 projection differs from the classic .NET SDK: controller creation
+    takes a `CoreWebView2ControllerWindowReference` (not `IntPtr`) and `Controller.Bounds` is
+    `Windows.Foundation.Rect` (not `System.Drawing.Rectangle`).
+
 ## 11. macOS-specific facts (context, not for Windows)
 
 - Permission is the merged **"Screen & System Audio Recording"** (macOS 14+);

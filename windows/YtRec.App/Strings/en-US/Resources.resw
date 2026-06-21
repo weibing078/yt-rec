@@ -46,4 +46,7 @@
   <data name="RecentHeader.Text"><value>Recent outputs (drag into Premiere)</value></data>
   <data name="OpenFolderLink.Content"><value>Open output folder</value></data>
   <data name="OpenLogLink.Content"><value>Log</value></data>
+  <data name="RecordButtonText.Text"><value>Record</value></data>
+  <data name="RecordButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name"><value>Start screen side-recording</value></data>
+  <data name="RecordHint.Text"><value>Record = capture what plays (for lives / undownloadable)</value></data>
 </root>

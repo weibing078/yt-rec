@@ -46,4 +46,7 @@
   <data name="RecentHeader.Text"><value>最近成品（可直接拖進 Premiere）</value></data>
   <data name="OpenFolderLink.Content"><value>打開輸出資料夾</value></data>
   <data name="OpenLogLink.Content"><value>Log</value></data>
+  <data name="RecordButtonText.Text"><value>側錄</value></data>
+  <data name="RecordButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name"><value>開始螢幕側錄</value></data>
+  <data name="RecordHint.Text"><value>側錄＝照著畫面錄（直播 / 無法下載時用）</value></data>
 </root>

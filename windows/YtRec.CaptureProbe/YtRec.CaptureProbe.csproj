@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\YtRec.Capture\YtRec.Capture.csproj" />
+    <ProjectReference Include="..\YtRec.Core\YtRec.Core.csproj" />
   </ItemGroup>
 
 </Project>

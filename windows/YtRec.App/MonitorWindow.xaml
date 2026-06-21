@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Floating viewfinder ("camera vs viewfinder", mac §5): a small always-on-top mirror of the captured
+     frames. Shrinking it never degrades the recording — quality is set by the hidden full-res PlayerWindow. -->
+<Window
+    x:Class="YtRec.App.MonitorWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Grid RowDefinitions="Auto,*,Auto" Background="#1A1A1A">
+
+        <!-- Drag bar: REC dot + elapsed + title -->
+        <Grid x:Name="Bar" Grid.Row="0" Height="34" Padding="10,0" ColumnDefinitions="Auto,Auto,*"
+              Background="#262626">
+            <Ellipse Grid.Column="0" Width="10" Height="10" Fill="#FF2E45" VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="1" x:Name="ElapsedText" Text="0:00" Margin="8,0,0,0"
+                       VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Foreground="White"/>
+            <TextBlock Grid.Column="2" x:Name="TitleText" Margin="10,0,0,0" VerticalAlignment="Center"
+                       FontSize="12" Foreground="#B0B0B0" TextTrimming="CharacterEllipsis"/>
+        </Grid>
+
+        <!-- Live preview mirror -->
+        <Image x:Name="Preview" Grid.Row="1" Stretch="Uniform" MinHeight="120"/>
+
+        <!-- Controls -->
+        <Grid Grid.Row="2" Height="42" Padding="8" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8"
+              Background="#262626">
+            <TextBlock Grid.Column="0" x:Name="StatusText" VerticalAlignment="Center"
+                       FontSize="11" Foreground="#909090" TextTrimming="CharacterEllipsis"/>
+            <Button Grid.Column="1" x:Name="ShrinkButton" Click="OnShrink" Content="–"
+                    Width="34" Padding="0" ToolTipService.ToolTip="縮到背景 / Shrink"/>
+            <Button Grid.Column="2" Click="OnStop" CornerRadius="6">
+                <Button.Resources>
+                    <SolidColorBrush x:Key="ButtonBackground" Color="#FF2E45"/>
+                    <SolidColorBrush x:Key="ButtonForeground" Color="White"/>
+                </Button.Resources>
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                    <FontIcon Glyph="&#xE71A;" FontSize="12" Foreground="White"/>
+                    <TextBlock Text="停止 / Stop" FontSize="12"/>
+                </StackPanel>
+            </Button>
+        </Grid>
+    </Grid>
+</Window>

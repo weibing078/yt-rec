@@ -1,9 +1,11 @@
 using YtRec.Capture;
+using YtRec.Core;
 
 // Usage:
 //   ytrec-capture --list                       list visible windows
 //   ytrec-capture --auto [seconds]             auto-pick a window that captures; report it
 //   ytrec-capture --foreground [seconds]       capture the current foreground window
+//   ytrec-capture --record <secs> <out.mp4> [fps]  record foreground window → fragmented MP4
 //   ytrec-capture "<title substr>" [seconds]   capture a window by title
 
 static async Task<int> Report(string label, IntPtr hwnd, int seconds)
@@ -63,6 +65,68 @@ switch (args[0])
         var saved = await WindowCapture.CaptureFramesToDirAsync(fg.Value, dir, count, maxSeconds: 8);
         Console.WriteLine($"saved {saved} frames to {dir}");
         return saved > 0 ? 0 : 1;
+    }
+
+    case "--record":
+    {
+        // --record <seconds> <out.mp4> [fps] [titleSubstr] : continuous-record a window to a fragmented MP4.
+        // With a title substring, capture that window; otherwise the foreground window.
+        if (args.Length < 3) { Console.Error.WriteLine("usage: --record <seconds> <out.mp4> [fps] [titleSubstr]"); return 2; }
+        var secs = int.TryParse(args[1], out var sv) ? sv : 5;
+        var outPath = args[2];
+        var fps = args.Length > 3 && int.TryParse(args[3], out var fv) ? fv : 30;
+
+        var ffmpeg = BinaryLocator.Resolve(BinaryLocator.Tool.Ffmpeg);
+        if (ffmpeg is null) { Console.Error.WriteLine("ffmpeg not found (set YTREC_BIN_DIR or PATH)"); return 4; }
+
+        var target = args.Length > 4 ? WindowFinder.FindByTitle(args[4]) : WindowFinder.Foreground();
+        if (target is null) { Console.Error.WriteLine("no capture target window"); return 3; }
+
+        var r = await ContinuousRecorder.RecordAsync(target.Value, ffmpeg, outPath, fps, secs);
+        Console.WriteLine($"supported={r.Supported} size={r.Width}x{r.Height} frames={r.FramesWritten} " +
+                          $"bytes={r.BytesWritten} ffmpegExit={r.FfmpegExitCode} -> {outPath}");
+        if (r.Error is not null) Console.Error.WriteLine("error: " + r.Error);
+        return r.FramesWritten > 0 && r.FfmpegExitCode == 0 ? 0 : 1;
+    }
+
+    case "--audio":
+    {
+        // --audio sys <seconds> <out.pcm>          system loopback (all audio)
+        // --audio proc <pid> <seconds> <out.pcm>   process-loopback for a PID's tree (Win11 isolation)
+        if (args.Length < 4) { Console.Error.WriteLine("usage: --audio sys <s> <out.pcm> | --audio proc <pid> <s> <out.pcm>"); return 2; }
+        var mode = args[1];
+        int secs; string outPath; uint pid = 0;
+        if (mode == "sys") { secs = int.Parse(args[2]); outPath = args[3]; }
+        else if (mode == "proc") { pid = uint.Parse(args[2]); secs = int.Parse(args[3]); outPath = args[4]; }
+        else { Console.Error.WriteLine("mode must be sys|proc"); return 2; }
+
+        var source = mode == "sys" ? AudioLoopbackCapture.Source.SystemLoopback : AudioLoopbackCapture.Source.ProcessLoopback;
+        var cap = new AudioLoopbackCapture(source, pid);
+
+        long bytes = 0; int peak = 0;
+        await using var fs = File.Create(outPath);
+        try
+        {
+            cap.Start((buf, count, _) =>
+            {
+                fs.Write(buf, 0, count);
+                bytes += count;
+                for (int i = 0; i + 1 < count; i += 2)
+                {
+                    int s = (short)(buf[i] | (buf[i + 1] << 8));
+                    int a = Math.Abs(s);
+                    if (a > peak) peak = a;
+                }
+            });
+        }
+        catch (Exception e) { Console.Error.WriteLine("acquire/start failed: " + e.Message); return 4; }
+        await Task.Delay(secs * 1000);
+        cap.Stop();
+        var f = cap.Format;
+        cap.Dispose();
+        await fs.FlushAsync();
+        Console.WriteLine($"mode={mode} pid={pid} bytes={bytes} peak={peak} fmt={f.SampleRate}/{f.Channels}/{f.BitsPerSample} -> {outPath}");
+        return bytes > 0 ? 0 : 1;
     }
 
     case "--png":

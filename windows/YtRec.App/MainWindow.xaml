@@ -41,15 +41,29 @@
                 <muxc:InfoBar Severity="Warning" IsOpen="{x:Bind Vm.HasWarning, Mode=OneWay}"
                               IsClosable="False" Message="{x:Bind Vm.WarningText, Mode=OneWay}"/>
 
-                <!-- URL + paste + primary action -->
-                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+                <muxc:InfoBar Severity="Informational" IsOpen="{x:Bind Vm.HasAudioNotice, Mode=OneWay}"
+                              IsClosable="True" Message="{x:Bind Vm.AudioNotice, Mode=OneWay}"/>
+
+                <!-- URL + paste -->
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <TextBox Grid.Column="0" x:Uid="UrlTextBox"
                              Text="{x:Bind Vm.UrlText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                     <Button Grid.Column="1" x:Uid="PasteButton" Click="OnPaste" Width="36">
                         <FontIcon Glyph="&#xE77F;" FontSize="15"/>
                     </Button>
-                    <Button Grid.Column="2" x:Uid="StartButton" CornerRadius="7"
+                </Grid>
+
+                <!-- Two tracks: download (ended/VOD) · record (lives / undownloadable) -->
+                <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                    <Button Grid.Column="0" x:Uid="StartButton" CornerRadius="7" HorizontalAlignment="Stretch"
                             Command="{x:Bind Vm.StartCommand}" IsEnabled="{x:Bind Vm.CanStart, Mode=OneWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                            <FontIcon Glyph="&#xE896;" FontSize="14"/>
+                            <TextBlock x:Uid="StartButtonText"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Grid.Column="1" x:Uid="RecordButton" CornerRadius="7" HorizontalAlignment="Stretch"
+                            Command="{x:Bind Vm.RecordCommand}" IsEnabled="{x:Bind Vm.CanRecord, Mode=OneWay}">
                         <Button.Resources>
                             <SolidColorBrush x:Key="ButtonBackground" Color="#FF2E45"/>
                             <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FF3D52"/>
@@ -58,12 +72,14 @@
                             <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="White"/>
                             <SolidColorBrush x:Key="ButtonForegroundPressed" Color="White"/>
                         </Button.Resources>
-                        <StackPanel Orientation="Horizontal" Spacing="6">
-                            <FontIcon Glyph="&#xE896;" FontSize="14" Foreground="White"/>
-                            <TextBlock x:Uid="StartButtonText"/>
+                        <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                            <Ellipse Width="11" Height="11" Fill="White" VerticalAlignment="Center"/>
+                            <TextBlock x:Uid="RecordButtonText"/>
                         </StackPanel>
                     </Button>
                 </Grid>
+                <TextBlock x:Uid="RecordHint" FontSize="11"
+                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
 
                 <!-- Clip-section (optional) -->
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
@@ -85,7 +101,7 @@
                         <TextBlock Text="{x:Bind Vm.JobTitle, Mode=OneWay}" FontSize="13"
                                    FontWeight="SemiBold" TextWrapping="Wrap"/>
                         <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                            <muxc:ProgressRing IsActive="{x:Bind Vm.IsBusy, Mode=OneWay}" Width="16" Height="16"/>
+                            <muxc:ProgressRing IsActive="{x:Bind Vm.IsBusyUi, Mode=OneWay}" Width="16" Height="16"/>
                             <TextBlock Text="{x:Bind Vm.StatusText, Mode=OneWay}" FontSize="12"
                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
                         </StackPanel>
@@ -104,7 +120,8 @@
                 <TextBlock x:Uid="RecentHeader" FontSize="12"
                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                            Visibility="{x:Bind local:XamlHelpers.VisCount(Vm.RecentFiles.Count), Mode=OneWay}"/>
-                <ListView ItemsSource="{x:Bind Vm.RecentFiles}" SelectionMode="None" IsItemClickEnabled="False">
+                <ListView ItemsSource="{x:Bind Vm.RecentFiles}" SelectionMode="None" IsItemClickEnabled="False"
+                          CanDragItems="True" DragItemsStarting="OnDragRecent">
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="local:RecentFile">
                             <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10" Padding="2,6">
