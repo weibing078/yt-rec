@@ -13,6 +13,17 @@ public partial class App : Application
     public App()
     {
         InitializeComponent();
+
+        // Crash diagnostics: the WinUI GUI had never been runtime-tested, so capture any unhandled failure
+        // (incl. native XAML/COM activation errors) to a log the test loop can read.
+        var crashLog = Path.Combine(Path.GetTempPath(), "ytrec-crash.log");
+        void Dump(string src, Exception? ex)
+        {
+            try { File.AppendAllText(crashLog, $"[{src}]\n{ex}\nHRESULT=0x{ex?.HResult:X8}\nINNER={ex?.InnerException}\n\n"); } catch { }
+        }
+        UnhandledException += (_, e) => Dump("App.UnhandledException: " + e.Message, e.Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => Dump("AppDomain", e.ExceptionObject as Exception);
+        TaskScheduler.UnobservedTaskException += (_, e) => Dump("TaskScheduler", e.Exception);
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)

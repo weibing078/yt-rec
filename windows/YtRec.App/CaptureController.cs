@@ -59,7 +59,7 @@ public sealed class CaptureController
         catch (Exception ex)
         {
             _monitor = null;
-            Status?.Invoke("監看小窗開啟失敗，仍繼續錄製：" + ex.Message);
+            Status?.Invoke($"監看小窗開啟失敗，仍繼續錄製：{ex.Message} [HRESULT=0x{ex.HResult:X8}] inner={ex.InnerException?.Message}");
         }
 
         // Content-driven output geometry (screen/DPI-independent): from the source video dims pick

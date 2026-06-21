@@ -11,8 +11,12 @@ public static class PlayerAssets
     public const string BrowserArguments =
         // Keep rendering while occluded/backgrounded, disable the hardware video overlay (MPO) so the video
         // composites into the window's surface that WGC captures, and allow autoplay WITH sound (no gesture).
+        // --disable-gpu-compositing is the decisive one for a *full-size* video: without it a large/filled
+        // video is promoted to a GPU swap-chain/overlay that WGC window-capture can't see (records black) —
+        // forcing software compositing draws the video INTO the window's redirection surface WGC captures.
         "--disable-features=CalculateNativeWinOcclusion,DirectCompositionVideoOverlays,UseSurfaceLayerForVideo " +
         "--disable-direct-composition-video-overlays " +
+        "--disable-gpu-compositing " +
         "--autoplay-policy=no-user-gesture-required " +
         "--disable-backgrounding-occluded-windows " +
         "--disable-renderer-backgrounding " +
