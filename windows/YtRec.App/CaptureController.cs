@@ -78,10 +78,10 @@ public sealed class CaptureController
         // a whole-window capture that includes the watch page's letterboxing (pillarbox on vertical).
         for (int i = 0; i < 20 && _player.VideoRectFrac is null; i++) await Task.Delay(200);
 
-        // Hide the live player behind an opaque lid slotted just above it in the z-order (Option C). WGC still
-        // captures the player's own surface, so the lid never lands in the recording.
-        _cover = new Win32PlayerCover();
-        _cover.Show(_player.Hwnd, win.Width, win.Height);
+        // The player now sits 99.99% off-screen (see Win32PlayerHost.Resize), so the user never sees it — no
+        // opaque lid needed (Mac-aligned). Kept as a fallback if a future WGC/driver clips off-screen windows.
+        // _cover = new Win32PlayerCover();
+        // _cover.Show(_player.Hwnd, win.Width, win.Height);
 
         // Window-capture the Win32-hosted WebView2 (works occluded/in the background), crop to the inline video
         // region (keeps the video inline → composites into the capturable surface, not a black overlay), then

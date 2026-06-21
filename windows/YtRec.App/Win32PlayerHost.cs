@@ -95,7 +95,11 @@ public sealed class Win32PlayerHost
     public void Resize(int w, int h)
     {
         if (Hwnd == IntPtr.Zero) return;
-        SetWindowPos(Hwnd, HWND_BOTTOM, 0, 0, w, h, SWP_NOACTIVATE);
+        // Push the window 99.99% off the top-left, leaving only a 2 px sliver on-screen: WGC needs the window
+        // composited (a *fully* off-screen window yields no frames), but it captures the window's whole backing
+        // surface regardless of how much is visible — so the user effectively never sees it (the Mac
+        // off-screen experience) and no opaque lid is needed. Falls back gracefully if WGC clips (we verify).
+        SetWindowPos(Hwnd, HWND_BOTTOM, 2 - w, 2 - h, w, h, SWP_NOACTIVATE);
         if (_controller is not null) _controller.Bounds = new Windows.Foundation.Rect(0, 0, w, h);
     }
 
