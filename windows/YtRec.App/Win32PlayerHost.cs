@@ -26,9 +26,14 @@ public sealed class Win32PlayerHost
     /// host derives landscape/portrait + the output size from this. Null until the player reports.</summary>
     public (int W, int H)? VideoDims { get; private set; }
 
-    /// <summary>The inline video element's rect as fractions of the window (x, y, w, h), reported by the page —
-    /// the recorder crops to it so the output is the video only (no page chrome). Null until laid out.</summary>
+    /// <summary>The inline video PICTURE rect as fractions of the window (x, y, w, h), reported by the page —
+    /// the recorder crops to it so the output is the video only (no page chrome / no pillarbox). Null until
+    /// laid out.</summary>
     public (double X, double Y, double W, double H)? VideoRectFrac { get; private set; }
+
+    /// <summary>Drop the cached rect so a stale (pre-resize) value can't be used — the caller then waits for a
+    /// fresh one after resizing the window.</summary>
+    public void ClearVideoRect() => VideoRectFrac = null;
 
     private CoreWebView2Controller? _controller;
     private CoreWebView2? _core;

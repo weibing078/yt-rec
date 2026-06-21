@@ -72,8 +72,11 @@ public sealed class CaptureController
             : CaptureGeometry.OutputSize(1920, 1080, quality); // no report → assume landscape 1080p
         var (screenW, screenH) = Win32PlayerHost.PrimaryScreenPixels();
         var win = CaptureGeometry.FitWindow(target, screenW, screenH);
+        _player.ClearVideoRect();           // discard the pre-resize rect
         _player.Resize(win.Width, win.Height);
-        await Task.Delay(1500); // let the page re-lay-out + theater mode engage so the crop rect is current
+        // Wait for a FRESH crop rect for the new (possibly portrait) layout — a stale/null rect falls back to
+        // a whole-window capture that includes the watch page's letterboxing (pillarbox on vertical).
+        for (int i = 0; i < 20 && _player.VideoRectFrac is null; i++) await Task.Delay(200);
 
         // Hide the live player behind an opaque lid slotted just above it in the z-order (Option C). WGC still
         // captures the player's own surface, so the lid never lands in the recording.
