@@ -106,4 +106,4 @@ WinUI App (`YtRec.App`, **not yet compiled** — CI/Windows only):
 ## Key docs
 [PRD](PRD.md) · [ARCHITECTURE](ARCHITECTURE.md) · [VERIFIED-BEHAVIOR](VERIFIED-BEHAVIOR.md) ·
 [PHASE2-CAPTURE](PHASE2-CAPTURE.md) · [TEST-PLAN](TEST-PLAN.md) · [ADRs](adr/) ·
-[parity-matrix](../shared/spec/parity-matrix.md)
+[parity-matrix](../shared/spec/parity-matrix.md) · [RUNTIME-QA-geometry](RUNTIME-QA-geometry.md)
