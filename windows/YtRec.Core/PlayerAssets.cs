@@ -34,42 +34,59 @@ public static class PlayerAssets
     public static string? EmbedUrlFrom(string rawUrl) =>
         YtUrl.VideoId(rawUrl) is string id ? EmbedUrl(id) : null;
 
-    /// <summary>Injected on NavigationCompleted: force playback, unmute so audio decodes, and report the
-    /// stream ending back to the host via window.chrome.webview.postMessage({type:'ytrec', state:'ended'}).
-    /// Polls player state too, since YouTube doesn't reliably fire video 'ended' on live state changes.</summary>
-    public const string ForcePlayAndReportScript = """
+    /// <summary>Injected on NavigationCompleted (mirrors mac <c>playerTakeoverJS</c>). CSS-stretches the entire
+    /// YouTube player container chain to fill the window (100vw/100vh) so the captured surface is the video
+    /// edge-to-edge — no page chrome, no crop needed (the whole window IS the video). Forces playback + unmute
+    /// (audio must decode), pins quality to <c>hd1080</c>, and reports the source video's pixel dimensions
+    /// (<c>dims:[videoWidth, videoHeight]</c> → host picks landscape/portrait output) and stream end
+    /// (<c>state:'ended'</c>) via <c>window.chrome.webview.postMessage</c>. A non-16:9 source is
+    /// <c>object-fit:contain</c> letterboxed inside the window — never distorted.</summary>
+    public const string FillPlayAndReportScript = """
         (function () {
-          function player() { return document.getElementById('movie_player'); }
-          function start() {
-            var p = player(), v = document.querySelector('video');
-            try { if (p && p.unMute) { p.unMute(); p.setVolume(100); } else if (v) { v.muted = false; v.volume = 1.0; } } catch (e) {}
-            try { if (v && v.play) v.play().catch(function(){}); } catch (e) {}
-            try { if (p && p.playVideo) p.playVideo(); } catch (e) {}
-          }
-          function report(state) {
-            try { window.chrome.webview.postMessage({ type: 'ytrec', state: state }); } catch (e) {}
-          }
-          function reportRect() {
-            // Report the video element's rect as FRACTIONS of the window (DPI-independent), so the recorder
-            // can crop the captured page down to just the video. A large/fullscreen video gets pushed to a
-            // hardware overlay that capture can't see, so we leave the player inline and crop instead.
+          var fill = 'visibility:visible!important;position:fixed!important;left:0!important;top:0!important;' +
+            'right:0!important;bottom:0!important;width:100vw!important;height:100vh!important;' +
+            'min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;' +
+            'margin:0!important;padding:0!important;transform:none!important;overflow:visible!important;background:#000!important';
+          var css = 'html,body{background:#000!important;overflow:hidden!important;margin:0!important;padding:0!important}' +
+            'body *{visibility:hidden!important}' +
+            'ytd-app,#content,#page-manager,ytd-watch-flexy,#full-bleed-container,#player-full-bleed-container,' +
+            '#player-theater-container,#columns,#primary,#primary-inner,#player,#player-container,' +
+            '#player-container-inner,#player-api,#movie_player,.html5-video-player,.html5-video-container{' + fill + '}' +
+            'video{visibility:visible!important;position:absolute!important;left:0!important;top:0!important;' +
+            'width:100%!important;height:100%!important;object-fit:contain!important;' +
+            'z-index:2147483647!important;background:#000!important;transform:none!important}';
+          var style = document.createElement('style');
+          style.textContent = css;
+          (document.documentElement || document.body).appendChild(style);
+          function post(o) { try { window.chrome.webview.postMessage(o); } catch (e) {} }
+          var lastW = 0, lastH = 0;
+          function tick() {
             try {
+              var p = document.getElementById('movie_player');
               var v = document.querySelector('video');
-              if (!v) return;
-              var r = v.getBoundingClientRect();
-              var W = window.innerWidth, H = window.innerHeight;
-              if (r.width > 40 && r.height > 40 && W > 0 && H > 0)
-                window.chrome.webview.postMessage({ type: 'ytrec', rect: [r.left / W, r.top / H, r.width / W, r.height / H] });
+              if (v) {
+                if (v.muted) v.muted = false;
+                if (v.volume < 1) v.volume = 1.0;
+                if (v.paused && !v.ended) { var pr = v.play(); if (pr && pr.catch) pr.catch(function () {}); }
+                if (v.videoWidth > 0 && (v.videoWidth !== lastW || v.videoHeight !== lastH)) {
+                  lastW = v.videoWidth; lastH = v.videoHeight;
+                  post({ type: 'ytrec', dims: [v.videoWidth, v.videoHeight] }); // host → landscape/portrait output
+                }
+                if (!v.__ytrecHooked) {
+                  v.__ytrecHooked = true;
+                  v.addEventListener('ended', function () { post({ type: 'ytrec', state: 'ended' }); });
+                }
+              }
+              if (p) {
+                if (p.unMute) p.unMute();
+                if (p.setPlaybackQualityRange) p.setPlaybackQualityRange('hd1080', 'hd1080'); // pin 1080p
+                if (p.setSize) { try { p.setSize(window.innerWidth, window.innerHeight); } catch (e) {} }
+                if (p.getPlayerState && p.getPlayerState() === 0) post({ type: 'ytrec', state: 'ended' }); // 0 = ENDED
+              }
+              try { window.dispatchEvent(new Event('resize')); } catch (e) {}
             } catch (e) {}
           }
-          start(); setTimeout(start, 1000); setTimeout(start, 3000);
-          setTimeout(reportRect, 1500); setInterval(reportRect, 2000);
-          var v = document.querySelector('video');
-          if (v) v.addEventListener('ended', function () { report('ended'); });
-          setInterval(function () {
-            var p = player();
-            if (p && p.getPlayerState && p.getPlayerState() === 0) report('ended'); // 0 = ENDED
-          }, 2000);
+          tick(); setTimeout(tick, 1000); setTimeout(tick, 3000); setInterval(tick, 2000);
         })();
         """;
 

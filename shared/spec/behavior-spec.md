@@ -45,6 +45,42 @@ on both platforms ([TEST-PLAN.md](../../docs/TEST-PLAN.md)).
   **last two** fields, join the middle as the title. `id` must be 11 chars.
 - `release_timestamp == "NA"` → null. 3-field (no timestamp) form accepted.
 
+## Capture geometry (resolution / orientation) — screen-independent
+The recorded file's pixel size is a function of the **source video** and the user's
+quality setting **only** — never the host screen or its DPI. Both platforms compute
+it from the same rule (`CaptureGeometry`).
+- **Orientation**: `videoHeight > videoWidth` → **portrait**; square and landscape →
+  **landscape**. (`videoWidth == 0` / unknown → landscape.)
+- **Output size** (quality = long-edge target, `1080` default or `720`):
+  - landscape → `1920×1080` (or `1280×720`)
+  - portrait  → `1080×1920` (or `720×1280`)
+  - always even dimensions.
+- **The player fills the capture surface**: the embedded YouTube player container
+  chain is CSS-stretched to `100vw/100vh` and quality is pinned (`hd1080`), so the
+  captured surface is the video edge-to-edge (a non-matching source aspect — e.g. a
+  4:3 clip — is `object-fit:contain` letterboxed inside the target frame, never
+  distorted). No page chrome is ever recorded.
+- **macOS** renders an off-screen window sized **exactly** to the output and lets
+  ScreenCaptureKit scale to it → output is deterministic on any screen.
+- **Windows** must keep the window on-screen and WGC captures native pixels, so it
+  sizes the on-screen window to the **largest box of the target aspect that fits the
+  screen** (`FitWindow`, capped at the target, even dims) and ffmpeg **scales+pads to
+  the exact target**. Result is the same deterministic output; sub-target screens
+  trade a little sharpness (upscale) for never overhanging the screen edge.
+
+## Window hiding (capture source must stay unseen)
+- **macOS**: the capture window lives fully **off-screen** (beyond all monitors);
+  SCK still captures it. The user never sees it.
+- **Windows**: WGC yields **no frames** for a fully off-screen window, so the player
+  stays on-screen, composited, and is **hidden by other means**:
+  - default: parked at `(0,0)`, no-activate, tool-window (no taskbar/Alt-Tab),
+    pushed to the bottom of the z-order (hidden whenever any window is in front);
+  - worst case (bare single-monitor desktop): covered by an **opaque, immovable,
+    full-player-size app lid** so the live page is never visible. WGC captures the
+    player's **own** surface, so the lid is never in the recording.
+  - the **WGC yellow capture border is disabled** (`IsBorderRequired = false`) so it
+    appears neither on screen nor in the output.
+
 ## Session gate (the corruption-prevention rule)
 - The **first audio sample** sets the session start (PTS baseline).
 - Audio: if `audioDisabled` → drop; else if not started → start session; else

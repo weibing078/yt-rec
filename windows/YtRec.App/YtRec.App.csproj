@@ -5,7 +5,8 @@
        (Windows App SDK / WinUI workload required). Cannot build on macOS/Linux. -->
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <!-- Must be ≥ the capture engine's SDK (22621, for IsBorderRequired); runtime floor stays Win10 1809. -->
+    <TargetFramework>net8.0-windows10.0.22621.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>YtRec.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>

@@ -88,6 +88,13 @@ final class MessageAndBadgeTests: XCTestCase {
         XCTAssertEqual(MonitorWindowController.classifyMessage("playing").event, "playing")
         XCTAssertNil(MonitorWindowController.classifyMessage("ended").title)
     }
+    func testParseDims() {
+        XCTAssertTrue(MonitorWindowController.parseDims("dims:1080x1920")! == (1080, 1920))
+        XCTAssertTrue(MonitorWindowController.parseDims("dims:1920x1080")! == (1920, 1080))
+        XCTAssertNil(MonitorWindowController.parseDims("dims:0x1920"))   // 非正整數
+        XCTAssertNil(MonitorWindowController.parseDims("dims:abc"))      // 格式錯
+        XCTAssertNil(MonitorWindowController.parseDims("playing"))       // 非 dims 前綴
+    }
     func testBadgeText() {
         XCTAssertEqual(MonitorWindowController.badgeText(elapsed: nil), "● 準備中")  // 未落地不假裝計時
         XCTAssertEqual(MonitorWindowController.badgeText(elapsed: 0), "● 00:00")
@@ -105,6 +112,7 @@ final class InjectedJSSmokeTests: XCTestCase {
         XCTAssertTrue(js.contains("v.muted = false"))              // 強制解除靜音
         XCTAssertTrue(js.contains("postMessage('ended')"))         // ended 回報（自動收工靠它）
         XCTAssertTrue(js.contains("'title:'"))                      // 標題回報
+        XCTAssertTrue(js.contains("'dims:'"))                       // 來源尺寸回報（直式偵測靠它）
     }
     func testVisibilitySpoofKeepsCriticalLines() {
         let js = MonitorWindowController.visibilitySpoofJS

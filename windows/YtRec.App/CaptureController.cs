@@ -18,6 +18,7 @@ public sealed class CaptureController
     private readonly string _ffmpegPath;
 
     private Win32PlayerHost? _player;
+    private Win32PlayerCover? _cover;
     private MonitorWindow? _monitor;
     private RecordingSession? _session;
     private string _segmentsDir = "";
@@ -29,7 +30,7 @@ public sealed class CaptureController
 
     public CaptureController(string ffmpegPath) => _ffmpegPath = ffmpegPath;
 
-    public async Task StartAsync(string url, string jobDir, string title, int fps = 30)
+    public async Task StartAsync(string url, string jobDir, string title, int fps = 30, int quality = 1080)
     {
         var watchUrl = PlayerAssets.WatchUrlFrom(url) ?? throw new InvalidOperationException("不是有效的 YouTube 影片網址");
         _segmentsDir = SegmentReassembler.SegmentsDir(jobDir);
@@ -52,15 +53,33 @@ public sealed class CaptureController
         _monitor.StopRequested += () => _ = StopAsync();
         _monitor.Activate();
 
-        // Window-capture the Win32-hosted WebView2 — works even when it's occluded/in the background — and
-        // crop to the video region (reported by the page JS) so the output is just the video, not the page.
+        // Content-driven output geometry (screen/DPI-independent): from the source video dims pick
+        // landscape/portrait + the exact output size, size the on-screen capture window to the largest box of
+        // that aspect that fits the screen, and have the recorder scale+pad to the exact target. The page CSS
+        // fills the player to the whole window, so we capture the window edge-to-edge (no crop, no null-rect race).
+        var dims = _player.VideoDims;
+        var target = dims is { } dd
+            ? CaptureGeometry.OutputSize(dd.W, dd.H, quality)
+            : CaptureGeometry.OutputSize(1920, 1080, quality); // no report → assume landscape 1080p
+        var (screenW, screenH) = Win32PlayerHost.PrimaryScreenPixels();
+        var win = CaptureGeometry.FitWindow(target, screenW, screenH);
+        _player.Resize(win.Width, win.Height);
+        await Task.Delay(300); // let the page re-lay-out at the new size before capture starts
+
+        // Hide the live player behind an opaque lid slotted just above it in the z-order (Option C). WGC still
+        // captures the player's own surface, so the lid never lands in the recording.
+        _cover = new Win32PlayerCover();
+        _cover.Show(_player.Hwnd, win.Width, win.Height);
+
+        // Window-capture the Win32-hosted WebView2 — works even when it's occluded/in the background.
         _session = new RecordingSession(_player.Hwnd, audio, _ffmpegPath, _segmentsDir, _audioPcmPath, fps)
         {
             OnPreviewFrame = (buf, w, h) => _monitor?.UpdatePreview(buf, w, h),
-            CropFrac = _player.VideoRectFrac,
+            TargetSize = (target.Width, target.Height),
         };
         _player.Ended += () => _ui.TryEnqueue(() => _ = StopAsync());
 
+        await RecordingSession.RequestBorderlessAsync(); // drop the yellow WGC border before capture
         _session.Start();
         IsRecording = true;
         _monitor.SetStatus(AudioCapability.IsolatedAudioSupported(OsBuild)
@@ -118,8 +137,10 @@ public sealed class CaptureController
     private void CloseWindows()
     {
         try { _monitor?.CloseMonitor(); } catch { }
+        try { _cover?.Close(); } catch { }
         try { _player?.Close(); } catch { }
         _monitor = null;
+        _cover = null;
         _player = null;
     }
 }

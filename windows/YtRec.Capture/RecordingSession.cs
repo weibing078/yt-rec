@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using Vortice.Direct3D11;
+using Windows.Foundation.Metadata;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
 using YtRec.Core;
@@ -57,10 +58,11 @@ public sealed class RecordingSession : IDisposable
     public int PreviewEveryNthFrame { get; set; } = 5;
     private int _previewCounter;
 
-    /// <summary>Optional crop as fractions of the captured window (x, y, w, h) — used to record just the video
-    /// region of the watch page (a fullscreen-sized video would hit a hardware overlay we can't capture).</summary>
-    public (double X, double Y, double W, double H)? CropFrac { get; set; }
-    private int _cropX, _cropY;
+    /// <summary>The deterministic output size (content-driven, from <see cref="YtRec.Core.CaptureGeometry"/>).
+    /// The whole captured window — the player now fills it edge-to-edge — is scaled+padded to exactly this, so
+    /// the file is screen/DPI-independent. Null → output the captured window size as-is (even-trimmed).</summary>
+    public (int W, int H)? TargetSize { get; set; }
+    private int _inW, _inH;
 
     public RecordingSession(IntPtr captureHwnd, AudioLoopbackCapture audio,
         string ffmpegPath, string segmentsDir, string audioPcmPath, int fps = 30)
@@ -91,6 +93,7 @@ public sealed class RecordingSession : IDisposable
         _pool = Direct3D11CaptureFramePool.CreateFreeThreaded(
             device, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, item.Size);
         _session = _pool.CreateCaptureSession(item);
+        TryDisableBorder(_session); // no yellow capture border — it would be drawn into the whole-window frame
         _pool.FrameArrived += OnFrame;
 
         _audioFile = new FileStream(_audioPcmPath, FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 16);
@@ -104,6 +107,28 @@ public sealed class RecordingSession : IDisposable
             await Task.Delay(8000);
             if (!_stopped && !_gate.AudioStarted) _gate.OnAudioSample(0);
         });
+    }
+
+    /// <summary>Acquire borderless-capture access once before recording (Win11; auto-granted for desktop apps).
+    /// Await this before <see cref="Start"/> so <see cref="TryDisableBorder"/> can actually drop the border.</summary>
+    public static async Task RequestBorderlessAsync()
+    {
+        try
+        {
+            if (ApiInformation.IsPropertyPresent("Windows.Graphics.Capture.GraphicsCaptureSession", "IsBorderRequired"))
+                await GraphicsCaptureAccess.RequestAccessAsync(GraphicsCaptureAccessKind.Borderless);
+        }
+        catch { /* older build or denied — border stays; the opaque lid still hides it on screen */ }
+    }
+
+    private static void TryDisableBorder(GraphicsCaptureSession session)
+    {
+        try
+        {
+            if (ApiInformation.IsPropertyPresent("Windows.Graphics.Capture.GraphicsCaptureSession", "IsBorderRequired"))
+                session.IsBorderRequired = false;
+        }
+        catch { /* older build (pre-Win11) or access not granted — harmless, border just stays */ }
     }
 
     private void OnAudio(byte[] buf, int count, long qpcTicks)
@@ -129,22 +154,11 @@ public sealed class RecordingSession : IDisposable
             if (_ff is null)
             {
                 _capW = w; _capH = h;
-                if (CropFrac is (double fx, double fy, double fw, double fh))
-                {
-                    _cropX = Math.Clamp((int)(fx * w), 0, w - 2);
-                    _cropY = Math.Clamp((int)(fy * h), 0, h - 2);
-                    _result.Width = Math.Clamp((int)(fw * w), 2, w - _cropX) & ~1;
-                    _result.Height = Math.Clamp((int)(fh * h), 2, h - _cropY) & ~1;
-                }
-                else
-                {
-                    _cropX = 0; _cropY = 0;
-                    _result.Width = w & ~1;   // even dims for yuv420p (drop the odd last row/col)
-                    _result.Height = h & ~1;
-                }
+                _inW = w & ~1; _inH = h & ~1;   // even input for yuv420p (drop the odd last row/col)
+                (_result.Width, _result.Height) = TargetSize is { } t ? (t.W, t.H) : (_inW, _inH);
                 _staging = _d3d!.CreateTexture2D(FrameReadback.StagingDesc(w, h, desc.Format));
-                _frameBuf = new byte[_result.Width * _result.Height * 4];
-                StartVideoFfmpeg(_result.Width, _result.Height);
+                _frameBuf = new byte[_inW * _inH * 4];
+                StartVideoFfmpeg(_inW, _inH, _result.Width, _result.Height);
             }
             if (w != _capW || h != _capH) return; // window resized mid-record — skip the odd frame
 
@@ -157,7 +171,7 @@ public sealed class RecordingSession : IDisposable
                 return;
             }
 
-            FrameReadback.CopyCropToBuffer(_context!, _staging!, src, _frameBuf!, _cropX, _cropY, _result.Width, _result.Height);
+            FrameReadback.CopyToBuffer(_context!, _staging!, src, _frameBuf!, _inW, _inH);
 
             // Real-time CFR pacing (clock starts at the first post-gate frame): emit the latest frame as many
             // times as wall-clock says are due so the file plays at true speed.
@@ -173,12 +187,12 @@ public sealed class RecordingSession : IDisposable
             {
                 var copy = new byte[_frameBuf!.Length];
                 Array.Copy(_frameBuf, copy, copy.Length);
-                preview(copy, w, h);
+                preview(copy, _inW, _inH);
             }
         }
     }
 
-    private void StartVideoFfmpeg(int w, int h)
+    private void StartVideoFfmpeg(int inW, int inH, int outW, int outH)
     {
         var psi = new ProcessStartInfo
         {
@@ -194,8 +208,8 @@ public sealed class RecordingSession : IDisposable
         };
         void Add(params string[] xs) { foreach (var x in xs) psi.ArgumentList.Add(x); }
         Add("-hide_banner", "-loglevel", "error", "-y");
-        Add("-f", "rawvideo", "-pixel_format", "bgra", "-video_size", $"{w}x{h}", "-framerate", _fps.ToString(), "-i", "pipe:0");
-        Add("-an", "-vf", ContinuousRecorder.EvenDimsFilter);
+        Add("-f", "rawvideo", "-pixel_format", "bgra", "-video_size", $"{inW}x{inH}", "-framerate", _fps.ToString(), "-i", "pipe:0");
+        Add("-an", "-vf", ContinuousRecorder.ScalePadFilter(outW, outH));
         Add("-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p");
         Add("-f", "hls", "-hls_time", "2", "-hls_list_size", "0",
             "-hls_segment_type", "fmp4",

@@ -3,7 +3,8 @@
   <!-- Headless WGC capture probe — needs a real, unlocked Windows desktop session to capture. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <!-- Must be ≥ the capture engine's SDK (22621); runtime floor stays Win10 1809. -->
+    <TargetFramework>net8.0-windows10.0.22621.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>YtRec.CaptureProbe</RootNamespace>
     <AssemblyName>ytrec-capture</AssemblyName>

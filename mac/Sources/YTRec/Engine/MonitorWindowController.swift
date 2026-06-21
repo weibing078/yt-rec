@@ -25,6 +25,7 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
 
     var onPlayerEvent: ((String) -> Void)?   // playing / ended / error
     var onTitle: ((String) -> Void)?
+    var onDims: ((Int, Int) -> Void)?        // 來源影片像素尺寸（videoWidth, videoHeight）→ 判斷直/橫式
     var onStopTapped: (() -> Void)?          // 小窗「停止」鈕
     var onHideTapped: (() -> Void)?          // 小窗「隱藏」鈕
 
@@ -105,6 +106,14 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
         return (nil, body)
     }
 
+    /// 解析影片尺寸回報 `dims:WxH`。前綴不符／欄位非正整數→nil。
+    nonisolated static func parseDims(_ body: String) -> (w: Int, h: Int)? {
+        guard body.hasPrefix("dims:") else { return nil }
+        let parts = body.dropFirst(5).split(separator: "x")
+        guard parts.count == 2, let w = Int(parts[0]), let h = Int(parts[1]), w > 0, h > 0 else { return nil }
+        return (w, h)
+    }
+
     /// 小窗徽章文字：尚未落地（nil）顯「● 準備中」、否則「● 」+時長（不假裝在計時，修審查 #8）。
     nonisolated static func badgeText(elapsed: Double?) -> String {
         guard let elapsed else { return "● 準備中" }
@@ -155,6 +164,15 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
         self.captureWindow = win
         self.captureWebView = web
         if let u = URL(string: urlString) { web.load(URLRequest(url: u)) }
+    }
+
+    /// 偵測到直式影片時，把隱藏的擷取視窗＋WebView 改成目標尺寸（仍離屏）。視窗編號不變，SCK 續錄同一視窗。
+    func resizeCaptureWindow(to size: CGSize) {
+        guard let win = captureWindow, let web = captureWebView else { return }
+        web.frame = NSRect(origin: .zero, size: size)
+        win.setContentSize(size)
+        positionCaptureOffscreen(win)
+        Log.info("monitor", "擷取視窗改尺寸 \(Int(size.width))x\(Int(size.height))（直式）")
     }
 
     /// 擷取視窗永遠藏在所有螢幕之外（離屏照錄已驗證；spoof JS 防背景節流）。
@@ -410,6 +428,7 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
         guard let body = message.body as? String else { return }
+        if let d = Self.parseDims(body) { onDims?(d.w, d.h); return }
         let m = Self.classifyMessage(body)
         if let title = m.title {
             onTitle?(title)
@@ -465,6 +484,7 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
       style.textContent = css;
       document.documentElement.appendChild(style);
       var sentTitle = false;
+      var sentDims = '';
       var tick = function () {
         try {
           if (!sentTitle && document.title) {
@@ -473,6 +493,10 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
           }
           var v = document.querySelector('video');
           if (!v) return;
+          if (v.videoWidth > 0 && (v.videoWidth + 'x' + v.videoHeight) !== sentDims) {
+            sentDims = v.videoWidth + 'x' + v.videoHeight;   // 直/橫式判斷用：回報來源影片像素尺寸
+            window.webkit.messageHandlers.lcf.postMessage('dims:' + sentDims);
+          }
           if (v.muted) v.muted = false;
           if (v.volume < 1) v.volume = 1.0;
           if (v.paused && !v.ended) { var p = v.play(); if (p && p.catch) p.catch(function () {}); }

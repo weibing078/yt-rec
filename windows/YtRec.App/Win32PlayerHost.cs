@@ -5,21 +5,26 @@ using YtRec.Core;
 
 namespace YtRec.App;
 
-/// <summary>The off-screen-style player, hosted in a plain Win32 window (NOT the WinUI WebView2 control).
-/// The WinUI control is visual-hosted (composition), so WGC never sees its video. A windowed WebView2
-/// (<c>CreateCoreWebView2Controller(hwnd)</c>) renders into a real HWND that WGC can capture. The window is
-/// topmost/visible at the top-left; the recorder captures its monitor and crops to this rectangle.</summary>
+/// <summary>The player, hosted in a plain Win32 window (NOT the WinUI WebView2 control). The WinUI control is
+/// visual-hosted (composition), so WGC never sees its video. A windowed WebView2
+/// (<c>CreateCoreWebView2Controller(hwnd)</c>) renders into a real HWND that WGC captures directly. The window
+/// stays on-screen at the top-left, sent to the bottom of the z-order and (Option C) covered by an opaque lid —
+/// Windows yields no WGC frames for a fully off-screen window, so it must stay composited. The page CSS-fills the
+/// player to the whole window, so the captured window IS the video (no crop); the host resizes the window to the
+/// content-driven target aspect via <see cref="YtRec.Core.CaptureGeometry"/>.</summary>
 public sealed class Win32PlayerHost
 {
+    /// <summary>Provisional creation size (landscape 1080p); resized to the content's target aspect once the
+    /// source dimensions are known (<see cref="Resize"/>).</summary>
     public const int Width = 1920, Height = 1080;
 
     public IntPtr Hwnd { get; private set; }
     public uint BrowserProcessId { get; private set; }
     public event Action? Ended;
 
-    /// <summary>The video element's rect as fractions of the window (x, y, w, h), reported by the page JS —
-    /// used to crop the captured page down to just the video. Null until the player has laid out.</summary>
-    public (double X, double Y, double W, double H)? VideoRectFrac { get; private set; }
+    /// <summary>The source video's pixel dimensions (videoWidth, videoHeight), reported by the page JS — the
+    /// host derives landscape/portrait + the output size from this. Null until the player reports.</summary>
+    public (int W, int H)? VideoDims { get; private set; }
 
     private CoreWebView2Controller? _controller;
     private CoreWebView2? _core;
@@ -58,21 +63,35 @@ public sealed class Win32PlayerHost
                 using var doc = JsonDocument.Parse(e.WebMessageAsJson);
                 var root = doc.RootElement;
                 if (root.TryGetProperty("state", out var s) && s.GetString() == "ended") Ended?.Invoke();
-                if (root.TryGetProperty("rect", out var r) && r.ValueKind == JsonValueKind.Array && r.GetArrayLength() == 4)
-                    VideoRectFrac = (r[0].GetDouble(), r[1].GetDouble(), r[2].GetDouble(), r[3].GetDouble());
+                if (root.TryGetProperty("dims", out var d) && d.ValueKind == JsonValueKind.Array && d.GetArrayLength() == 2)
+                    VideoDims = (d[0].GetInt32(), d[1].GetInt32());
             }
             catch { }
         };
         _core.NavigationCompleted += async (_, e) =>
         {
             if (!e.IsSuccess) return;
-            await _core.ExecuteScriptAsync(PlayerAssets.ForcePlayAndReportScript);
+            await _core.ExecuteScriptAsync(PlayerAssets.FillPlayAndReportScript);
             _ready.TrySetResult();
         };
 
         _core.Navigate(watchUrl);
         await _ready.Task;
     }
+
+    /// <summary>Resize the host window + WebView2 to the content-driven capture size, kept at the top-left and
+    /// the bottom of the z-order. Called once the source dimensions are known, before capture starts.</summary>
+    public void Resize(int w, int h)
+    {
+        if (Hwnd == IntPtr.Zero) return;
+        SetWindowPos(Hwnd, HWND_BOTTOM, 0, 0, w, h, SWP_NOACTIVATE);
+        if (_controller is not null) _controller.Bounds = new Windows.Foundation.Rect(0, 0, w, h);
+    }
+
+    /// <summary>Primary monitor size in physical pixels. The process is PerMonitorV2, so GetSystemMetrics
+    /// returns real device pixels — used to fit the capture window within the screen.</summary>
+    public static (int W, int H) PrimaryScreenPixels()
+        => (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN));
 
     public async Task SeekAsync(double seconds)
     {
@@ -94,6 +113,7 @@ public sealed class Win32PlayerHost
     private const uint WS_POPUP = 0x80000000;
     private const uint WS_EX_NOACTIVATE = 0x08000000, WS_EX_TOOLWINDOW = 0x00000080;
     private const int SW_SHOWNA = 8;
+    private const int SM_CXSCREEN = 0, SM_CYSCREEN = 1;
     private static readonly IntPtr HWND_BOTTOM = new(1);
     private const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
 
@@ -141,5 +161,6 @@ public sealed class Win32PlayerHost
     [DllImport("user32.dll")] private static extern bool DestroyWindow(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int nIndex);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr GetModuleHandle(string? name);
 }

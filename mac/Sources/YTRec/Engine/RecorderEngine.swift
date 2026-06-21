@@ -24,7 +24,7 @@ final class RecorderEngine: NSObject, SCStreamOutput, SCStreamDelegate, AVAssetW
     }
 
     let store: SegmentStore
-    private let size: CGSize
+    private var size: CGSize    // 可在開始寫檔前調整（偵測到直式影片→1080×1920）
     private let bitrate: Int
 
     private var stream: SCStream?
@@ -79,17 +79,7 @@ final class RecorderEngine: NSObject, SCStreamOutput, SCStreamDelegate, AVAssetW
         let scWindow = try await findWindow(number: captureWindowNumber)
 
         let filter = SCContentFilter(desktopIndependentWindow: scWindow)
-        let config = SCStreamConfiguration()
-        config.width = Int(size.width)
-        config.height = Int(size.height)
-        config.minimumFrameInterval = CMTime(value: 1, timescale: 30)
-        config.pixelFormat = kCVPixelFormatType_32BGRA
-        config.showsCursor = false
-        config.queueDepth = 8
-        config.capturesAudio = true                  // 純 SCK 音訊：只收該視窗 App 的聲音
-        config.excludesCurrentProcessAudio = false   // 我們要錄的就是自己（WebKit）的聲音
-        config.sampleRate = 48_000
-        config.channelCount = 2
+        let config = makeConfig()
 
         let stream = SCStream(filter: filter, configuration: config, delegate: self)
         try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: sckQueue)
@@ -118,6 +108,37 @@ final class RecorderEngine: NSObject, SCStreamOutput, SCStreamDelegate, AVAssetW
             }
         }
         Log.info("recorder", "側錄啟動 \(Int(size.width))x\(Int(size.height)) @\(bitrate / 1_000_000)Mbps（純 SCK 音訊）")
+    }
+
+    /// SCK 串流設定（單一事實來源；start 與 updateOutputSize 共用）。輸出尺寸跟著 `size` 走。
+    private func makeConfig() -> SCStreamConfiguration {
+        let config = SCStreamConfiguration()
+        config.width = Int(size.width)
+        config.height = Int(size.height)
+        config.minimumFrameInterval = CMTime(value: 1, timescale: 30)
+        config.pixelFormat = kCVPixelFormatType_32BGRA
+        config.showsCursor = false
+        config.queueDepth = 8
+        config.capturesAudio = true                  // 純 SCK 音訊：只收該視窗 App 的聲音
+        config.excludesCurrentProcessAudio = false   // 我們要錄的就是自己（WebKit）的聲音
+        config.sampleRate = 48_000
+        config.channelCount = 2
+        return config
+    }
+
+    /// 在「尚未開始寫檔」時調整輸出尺寸（偵測到直式影片→1080×1920）。已開始寫檔則一律忽略，
+    /// 避免動到進行中的 fragment；失敗也只是維持原尺寸（直式仍會 letterbox 呈現，乾淨不壞）。
+    func updateOutputSize(_ newSize: CGSize) async {
+        guard !writing,
+              Int(newSize.width) != Int(size.width) || Int(newSize.height) != Int(size.height) else { return }
+        size = newSize  // start() 之前呼叫：start 會用新尺寸；之後呼叫：下面即時重設串流
+        guard let stream else { return }
+        do {
+            try await stream.updateConfiguration(makeConfig())
+            Log.info("recorder", "輸出尺寸更新為 \(Int(newSize.width))x\(Int(newSize.height))（直式偵測）")
+        } catch {
+            Log.error("recorder", "updateConfiguration 失敗，維持原尺寸：\(error.localizedDescription)")
+        }
     }
 
     /// 開始寫檔（從現在的播放位置往後錄）。預覽/定位完、要正式錄時呼叫。

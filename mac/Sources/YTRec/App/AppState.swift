@@ -366,6 +366,20 @@ final class AppState: ObservableObject {
                 if j.title == j.videoID || j.title == j.url { j.title = FileUtil.sanitize(t) }
             }
         }
+        // 直式影片偵測：頁面回報來源尺寸 → 還沒寫檔時把輸出改成直式（1080×1920），避免直影片被 letterbox 成
+        // 滿是黑邊的橫式。橫式影片 target == 現有尺寸 → 不動（出檔與原本完全相同）。寫檔後一律忽略。
+        monitor.onDims = { [weak self, weak j, weak rec] w, h in
+            Task { @MainActor in
+                guard let self, let j, let rec, self.recorder === rec else { return }
+                switch j.trackB { case .preparing, .previewing: break; default: return }
+                let quality = Int(Settings.recordSize.height)   // 720 或 1080
+                let target = CaptureGeometry.outputSize(videoWidth: w, videoHeight: h, quality: quality)
+                guard Int(target.width) != Int(size.width) || Int(target.height) != Int(size.height) else { return }
+                Log.info("job", "偵測到影片 \(w)x\(h) → 改直式輸出 \(Int(target.width))x\(Int(target.height))")
+                self.monitor.resizeCaptureWindow(to: target)
+                await rec.updateOutputSize(target)
+            }
+        }
         monitor.onPlayerEvent = { [weak self, weak j] event in
             Task { @MainActor in
                 guard let self, let j else { return }

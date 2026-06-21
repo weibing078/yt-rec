@@ -31,6 +31,12 @@ public static class ContinuousRecorder
     // last row/column away before encoding (drops at most 1px). Found on real hardware: a 1115×628 window.
     internal const string EvenDimsFilter = "crop=trunc(iw/2)*2:trunc(ih/2)*2";
 
+    /// <summary>Scale the captured frame to fit exactly w×h preserving aspect, then pad to w×h (centered, black
+    /// bars) — so the output is the deterministic content-driven target size regardless of the captured window's
+    /// size, with no distortion. setsar=1 keeps square pixels.</summary>
+    internal static string ScalePadFilter(int w, int h)
+        => $"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:black,setsar=1";
+
     /// <summary>Record <paramref name="hwnd"/> into a single fragmented MP4 at <paramref name="outPath"/>.</summary>
     public static Task<RecordResult> RecordAsync(IntPtr hwnd, string ffmpegPath, string outPath, int fps, int seconds)
         => CaptureToFfmpegAsync(hwnd, ffmpegPath, fps, seconds, (_, _) => new[]

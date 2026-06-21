@@ -20,6 +20,29 @@ remains is UI polish + interactively eyeballing the GUI. Nothing committed yet.
 - Engine + 92 Core tests green on Win11; the WinUI App compiles with VS Build Tools MSBuild.
 - ~6 hardware-only bugs found + fixed (see VERIFIED-BEHAVIOR §10b/10c).
 
+## Built this session (Capture geometry + window hiding — code complete, unit-tested)
+Goal: both platforms record **clean, content-driven 1080p** (screen/DPI-independent) incl. **vertical**,
+and Windows **hides** the capture window. TDD/BDD: shared `behavior-spec` "Capture geometry" + "Window hiding";
+shared `CaptureGeometry` implemented twice (20 C# + 3 Swift L1). **Mac: `swift build` + 167 tests green;
+C# Core: 113 tests green; Capture/Probe/Cli compile (EnableWindowsTargeting).**
+1. **Shared geometry** — `CaptureGeometry` (orientation + output size from source dims; Windows `FitWindow`).
+2. **Windows 1080p** — `PlayerAssets.FillPlayAndReportScript` (CSS-fills the player to the window, forces
+   `hd1080`, reports source dims) + `RecordingSession` now captures the **whole filled window** and ffmpeg
+   **scale+pads to the exact target** (dropped the ~720p crop + null-rect race). `Win32PlayerHost.Resize` +
+   `CaptureController` size the window to the target aspect that fits the screen.
+3. **Vertical** — source dims → 1080×1920. mac: pre-write `updateOutputSize` (`SCStream.updateConfiguration`
+   + off-screen window resize; safe — only before writing, landscape path byte-identical). win: portrait `FitWindow`.
+4. **Hide window (win)** — `Win32PlayerCover`: opaque immovable lid slotted just above the player in the
+   z-order (hides it on a bare desktop, never covers the user's other windows, never in the recording).
+5. **No yellow border (win)** — `RequestAccessAsync(Borderless)` + `IsBorderRequired=false` (SDK→22621, floor Win10).
+
+### Verification debt for this session's work (needs the Win box / a desktop session)
+- **Win App first compile with these changes** — push → `windows-build` CI (App can't build on Mac).
+- **Win runtime**: record landscape → **true 1080p** (not 720p); vertical → **1080×1920**; **lid hides** the
+  player on a bare single-monitor desktop; **no yellow border** on screen or in the file; small/hi-DPI screens
+  (1366×768, 150%/200%) capture full-frame (no overhang clip); fill→no MPO-overlay blank.
+- **Mac runtime**: record a vertical video → confirm a true 1080×1920 file (not a letterboxed 16:9).
+
 ## Remaining (not blocking the core result)
 - Interactively eyeball the **GUI** (Record button, floating monitor preview, settings dialog,
   drag-to-Premiere) — these compile + run in the autorecord flow but weren't visually driven.

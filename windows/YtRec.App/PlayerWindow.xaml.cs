@@ -69,7 +69,7 @@ public sealed partial class PlayerWindow : Window
         core.NavigationCompleted += async (_, e) =>
         {
             if (!e.IsSuccess) return;
-            await core.ExecuteScriptAsync(PlayerAssets.ForcePlayAndReportScript);
+            await core.ExecuteScriptAsync(PlayerAssets.FillPlayAndReportScript);
             _ready.TrySetResult();
         };
 

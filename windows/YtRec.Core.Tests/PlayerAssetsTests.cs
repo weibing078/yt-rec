@@ -26,4 +26,15 @@ public class PlayerAssetsTests
     {
         Assert.Contains("seekTo(3599.5", PlayerAssets.SeekScript(3599.5));
     }
+
+    [Fact]
+    public void FillScriptFillsWindowForces1080AndReportsDims()
+    {
+        var s = PlayerAssets.FillPlayAndReportScript;
+        Assert.Contains("100vw", s);                                       // player fills the window
+        Assert.Contains("object-fit:contain", s);                         // non-16:9 letterboxed, not distorted
+        Assert.Contains("setPlaybackQualityRange('hd1080', 'hd1080')", s); // 1080p pinned
+        Assert.Contains("dims: [v.videoWidth, v.videoHeight]", s);         // source dims → orientation
+        Assert.Contains("state: 'ended'", s);                             // stream-end signal
+    }
 }

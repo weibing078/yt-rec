@@ -3,7 +3,9 @@
   <!-- Windows-only capture engine (Windows.Graphics.Capture + D3D11). Phase 2.
        Compile-verified on CI; runtime needs a real, unlocked Windows desktop session. -->
   <PropertyGroup>
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <!-- Compile against the Win11 SDK surface (IsBorderRequired / GraphicsCaptureAccess live here) but keep the
+         runtime floor at Win10 1809 — the ApiInformation guard skips those calls on builds that lack them. -->
+    <TargetFramework>net8.0-windows10.0.22621.0</TargetFramework>
     <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
     <RootNamespace>YtRec.Capture</RootNamespace>
     <Nullable>enable</Nullable>
