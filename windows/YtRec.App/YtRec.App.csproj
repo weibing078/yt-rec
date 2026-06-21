@@ -20,6 +20,10 @@
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <DefaultLanguage>en-US</DefaultLanguage>
+    <!-- Unpackaged self-contained WinUI looks for the app PRI named exactly resources.pri at runtime
+         (microsoft-ui-xaml#10856); default AssemblyName.pri is not found → every window throws
+         "Cannot locate resource ms-appx:///*.xaml" (0x802B000A). -->
+    <ProjectPriFileName>resources.pri</ProjectPriFileName>
   </PropertyGroup>
 
   <ItemGroup>
@@ -35,5 +39,14 @@
   <ItemGroup>
     <PRIResource Include="Strings\**\*.resw" />
   </ItemGroup>
+
+  <!-- The publish step drops the app's resources.pri (WindowsAppSDK#3451). Copy it into the publish folder
+       so the GUI can locate its XAML windows; without it the app crashes on launch. -->
+  <Target Name="CopyAppPriToPublish" AfterTargets="Publish">
+    <Copy Condition="Exists('$(TargetDir)resources.pri')"
+          SourceFiles="$(TargetDir)resources.pri" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="false" />
+    <Warning Condition="!Exists('$(TargetDir)resources.pri')"
+             Text="resources.pri not found at $(TargetDir) — the published GUI will fail to load XAML." />
+  </Target>
 
 </Project>
