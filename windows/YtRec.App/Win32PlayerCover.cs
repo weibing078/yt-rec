@@ -24,11 +24,16 @@ public sealed class Win32PlayerCover
         PlaceAbove(playerHwnd, w, h);
     }
 
-    /// <summary>Keep the lid exactly over the player after a resize, and re-assert it sits just above the player.</summary>
+    /// <summary>Keep the lid exactly over the player and sitting DIRECTLY ABOVE it in the z-order. Win32
+    /// "insert after" puts a window *behind* the reference, so `SetWindowPos(lid, player)` actually hid the lid
+    /// behind the player (the live page showed). Correct order: send the lid to the bottom (sized), then move
+    /// the player just behind the lid — the pair stays at the bottom of the z-order (the user's other windows
+    /// remain on top; on a bare desktop the opaque lid covers the live player).</summary>
     public void PlaceAbove(IntPtr playerHwnd, int w, int h)
     {
         if (Hwnd == IntPtr.Zero) return;
-        SetWindowPos(Hwnd, playerHwnd, 0, 0, w, h, SWP_NOACTIVATE);
+        SetWindowPos(Hwnd, HWND_BOTTOM, 0, 0, w, h, SWP_NOACTIVATE);
+        SetWindowPos(playerHwnd, Hwnd, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
     public void Close()
@@ -41,7 +46,8 @@ public sealed class Win32PlayerCover
     private const uint WS_POPUP = 0x80000000;
     private const uint WS_EX_NOACTIVATE = 0x08000000, WS_EX_TOOLWINDOW = 0x00000080;
     private const int SW_SHOWNA = 8;
-    private const uint SWP_NOACTIVATE = 0x10;
+    private const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
+    private static readonly IntPtr HWND_BOTTOM = new(1);
 
     private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
     private static readonly WndProcDelegate s_wndProc = (h, m, w, l) => DefWindowProc(h, m, w, l);
