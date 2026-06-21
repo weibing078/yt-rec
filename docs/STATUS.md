@@ -4,10 +4,12 @@
 > in [shared/spec/parity-matrix.md](../shared/spec/parity-matrix.md).
 
 ## One line
-**Full Mac parity is verified on real Windows 11.** The app records a real YouTube stream's
-**video + only its audio** into a clean H.264+AAC MP4 (frame-verified: actual video playing;
-audio isolated at 33 dB; decode 0 errors; correct duration). Phase 2 is functionally done; what
-remains is UI polish + interactively eyeballing the GUI. Nothing committed yet.
+**The Windows app is a complete, usable, no-install app — the whole GUI flow is verified on real
+Win11.** Driving the actual MainWindow via UI Automation: paste URL → click **側錄** → records clean
+**1920×1080** (or **1080×1920** vertical, full-frame) real video + isolated audio, the live page is
+**hidden behind the lid**, the **viewfinder** shows a live preview, click **停止** → the file lands in
+the **recent list**; the **下載** button downloads a VOD too. Mica window; binaries bundled (runs from a
+fresh extract). Both platforms now record content-driven 1080p; Mac verified via SCK. Signing skipped per owner.
 
 ## Verified end-to-end on real Win11 (machine `home`, build 26200)
 - **Killer feature — per-process audio isolation = 33 dB** (target tone −24 dB while another
