@@ -76,9 +76,17 @@ public static class PlayerAssets
                   v.__ytrecHooked = true;
                   v.addEventListener('ended', function () { post({ type: 'ytrec', state: 'ended' }); });
                 }
-                var r = v.getBoundingClientRect(), W = window.innerWidth, H = window.innerHeight;
-                if (r.width > 80 && r.height > 80 && W > 0 && H > 0)
-                  post({ type: 'ytrec', rect: [r.left / W, r.top / H, r.width / W, r.height / H] });
+                // Crop to the actual PICTURE, not the player box: a vertical video sits letterboxed inside a
+                // wider player element, so cropping the element gives big black pillars. Compute the
+                // object-fit:contain picture rect from the source aspect so the output fills the frame.
+                var er = v.getBoundingClientRect(), W = window.innerWidth, H = window.innerHeight;
+                var vw = v.videoWidth, vh = v.videoHeight;
+                if (er.width > 80 && er.height > 80 && W > 0 && H > 0 && vw > 0 && vh > 0) {
+                  var sc = Math.min(er.width / vw, er.height / vh);
+                  var pw = vw * sc, ph = vh * sc;
+                  var px = er.left + (er.width - pw) / 2, py = er.top + (er.height - ph) / 2;
+                  post({ type: 'ytrec', rect: [px / W, py / H, pw / W, ph / H] });
+                }
               }
               if (p) {
                 if (p.unMute) p.unMute();

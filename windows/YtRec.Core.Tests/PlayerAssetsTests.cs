@@ -34,7 +34,7 @@ public class PlayerAssetsTests
         Assert.DoesNotContain("100vw", s);                                 // NOT fullscreen-filled (would record black)
         Assert.Contains("ytp-size-button", s);                            // theater mode → large INLINE player
         Assert.Contains("setPlaybackQualityRange('hd1080', 'hd1080')", s); // 1080p pinned
-        Assert.Contains("rect: [r.left / W", s);                          // video rect → crop to video only
+        Assert.Contains("rect: [px / W", s);                              // crop to the PICTURE rect (no pillarbox)
         Assert.Contains("dims: [v.videoWidth, v.videoHeight]", s);         // source dims → orientation
         Assert.Contains("state: 'ended'", s);                             // stream-end signal
     }
