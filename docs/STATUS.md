@@ -47,12 +47,17 @@ C# Core: 113 tests green; Capture/Probe/Cli compile (EnableWindowsTargeting).**
 - 🔑 **Key win-runtime lesson:** a fullscreen-filled video records BLACK (WGC can't see the GPU overlay);
   the working path is an INLINE player (theater mode) cropped to the video rect + scale-pad to target.
 
-### Remaining for a shippable Windows build
-- ⏳ **Vertical (9:16) on real Win11** — mechanism proven (portrait `FitWindow` + crop + scale-pad); not yet
-  recorded on hardware. Runbook [RUNTIME-QA-geometry.md](RUNTIME-QA-geometry.md) §A.
-- ⏳ **Bundle `yt-dlp.exe` + `ffmpeg.exe`** in the portable build (the app warns "missing tools" without them;
-  recording/download need them). Mac bundles them in `Vendor/bin`; the Win portable zip does not yet.
-- ⏳ **Lid / no-border / small-screen** visual confirms on hardware (recording itself is verified).
+### All core items verified on real Win11 (machine `home`, build 26200)
+- ✅ **Landscape** → clean **1920×1080**, real content (Big Buck Bunny, 2519 kb/s, full frame).
+- ✅ **Vertical (9:16)** → clean **1080×1920**, real content **filling the frame** (native-vertical video, no
+  pillarbox — crop to the object-fit picture rect after waiting for a fresh post-resize rect).
+- ✅ **Bundled binaries** — recorded with **no `YTREC_BIN_DIR`**, so the portable build's `vendor/bin/{yt-dlp,
+  ffmpeg}.exe` are found (CI fetches them via `tools/setup-binaries.ps1`).
+- ✅ **GUI launches** + Mica backdrop (was crashing pre-fix).
+
+### Still worth a visual confirm on hardware (recording itself is verified)
+- ⏳ **Lid hides the player** on a bare single-monitor desktop; **no yellow border**; small/hi-DPI screens
+  (1366×768, 150%/200%) capture full-frame. Runbook [RUNTIME-QA-geometry.md](RUNTIME-QA-geometry.md) §A.
 
 ## Remaining (not blocking the core result)
 - Interactively eyeball the **GUI** (Record button, floating monitor preview, settings dialog,
