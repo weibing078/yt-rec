@@ -73,18 +73,21 @@ public sealed class CaptureController
         var (screenW, screenH) = Win32PlayerHost.PrimaryScreenPixels();
         var win = CaptureGeometry.FitWindow(target, screenW, screenH);
         _player.Resize(win.Width, win.Height);
-        await Task.Delay(300); // let the page re-lay-out at the new size before capture starts
+        await Task.Delay(1500); // let the page re-lay-out + theater mode engage so the crop rect is current
 
         // Hide the live player behind an opaque lid slotted just above it in the z-order (Option C). WGC still
         // captures the player's own surface, so the lid never lands in the recording.
         _cover = new Win32PlayerCover();
         _cover.Show(_player.Hwnd, win.Width, win.Height);
 
-        // Window-capture the Win32-hosted WebView2 — works even when it's occluded/in the background.
+        // Window-capture the Win32-hosted WebView2 (works occluded/in the background), crop to the inline video
+        // region (keeps the video inline → composites into the capturable surface, not a black overlay), then
+        // the recorder scales+pads that crop to the exact target so the output is a clean, content-driven size.
         _session = new RecordingSession(_player.Hwnd, audio, _ffmpegPath, _segmentsDir, _audioPcmPath, fps)
         {
             OnPreviewFrame = (buf, w, h) => _monitor?.UpdatePreview(buf, w, h),
             TargetSize = (target.Width, target.Height),
+            CropFrac = _player.VideoRectFrac,
         };
         _player.Ended += () => _ui.TryEnqueue(() => _ = StopAsync());
 

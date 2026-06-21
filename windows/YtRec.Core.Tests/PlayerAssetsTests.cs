@@ -28,12 +28,13 @@ public class PlayerAssetsTests
     }
 
     [Fact]
-    public void FillScriptFillsWindowForces1080AndReportsDims()
+    public void PlayerScriptStaysInlineTheaterForces1080AndReportsRectDims()
     {
         var s = PlayerAssets.FillPlayAndReportScript;
-        Assert.Contains("100vw", s);                                       // player fills the window
-        Assert.Contains("object-fit:contain", s);                         // non-16:9 letterboxed, not distorted
+        Assert.DoesNotContain("100vw", s);                                 // NOT fullscreen-filled (would record black)
+        Assert.Contains("ytp-size-button", s);                            // theater mode → large INLINE player
         Assert.Contains("setPlaybackQualityRange('hd1080', 'hd1080')", s); // 1080p pinned
+        Assert.Contains("rect: [r.left / W", s);                          // video rect → crop to video only
         Assert.Contains("dims: [v.videoWidth, v.videoHeight]", s);         // source dims → orientation
         Assert.Contains("state: 'ended'", s);                             // stream-end signal
     }

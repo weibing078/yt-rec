@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
 using Windows.Storage;
@@ -18,11 +19,14 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
 
+        // Native Win11 material so the window doesn't read as a flat/unfinished panel.
+        SystemBackdrop = new MicaBackdrop();
+
         // Custom title bar: brand + commands on the left, system caption buttons on the right.
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(DragRegion);
         Title = "YT Rec";
-        AppWindow.Resize(new SizeInt32(500, 760));
+        AppWindow.Resize(new SizeInt32(480, 720));
 
         // Disaster recovery: rebuild any side-record interrupted by a crash/kill (off the UI thread).
         _ = Vm.RecoverOrphansAsync();

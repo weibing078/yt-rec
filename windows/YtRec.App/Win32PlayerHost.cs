@@ -26,6 +26,10 @@ public sealed class Win32PlayerHost
     /// host derives landscape/portrait + the output size from this. Null until the player reports.</summary>
     public (int W, int H)? VideoDims { get; private set; }
 
+    /// <summary>The inline video element's rect as fractions of the window (x, y, w, h), reported by the page —
+    /// the recorder crops to it so the output is the video only (no page chrome). Null until laid out.</summary>
+    public (double X, double Y, double W, double H)? VideoRectFrac { get; private set; }
+
     private CoreWebView2Controller? _controller;
     private CoreWebView2? _core;
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -65,6 +69,8 @@ public sealed class Win32PlayerHost
                 if (root.TryGetProperty("state", out var s) && s.GetString() == "ended") Ended?.Invoke();
                 if (root.TryGetProperty("dims", out var d) && d.ValueKind == JsonValueKind.Array && d.GetArrayLength() == 2)
                     VideoDims = (d[0].GetInt32(), d[1].GetInt32());
+                if (root.TryGetProperty("rect", out var r) && r.ValueKind == JsonValueKind.Array && r.GetArrayLength() == 4)
+                    VideoRectFrac = (r[0].GetDouble(), r[1].GetDouble(), r[2].GetDouble(), r[3].GetDouble());
             }
             catch { }
         };

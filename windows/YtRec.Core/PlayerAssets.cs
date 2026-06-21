@@ -40,56 +40,52 @@ public static class PlayerAssets
     public static string? EmbedUrlFrom(string rawUrl) =>
         YtUrl.VideoId(rawUrl) is string id ? EmbedUrl(id) : null;
 
-    /// <summary>Injected on NavigationCompleted (mirrors mac <c>playerTakeoverJS</c>). CSS-stretches the entire
-    /// YouTube player container chain to fill the window (100vw/100vh) so the captured surface is the video
-    /// edge-to-edge — no page chrome, no crop needed (the whole window IS the video). Forces playback + unmute
-    /// (audio must decode), pins quality to <c>hd1080</c>, and reports the source video's pixel dimensions
-    /// (<c>dims:[videoWidth, videoHeight]</c> → host picks landscape/portrait output) and stream end
-    /// (<c>state:'ended'</c>) via <c>window.chrome.webview.postMessage</c>. A non-16:9 source is
-    /// <c>object-fit:contain</c> letterboxed inside the window — never distorted.</summary>
+    /// <summary>Injected on NavigationCompleted. Keeps the YouTube player INLINE (never fullscreen-filled) —
+    /// a full-size/fullscreen video is promoted to a GPU overlay that WGC window-capture renders BLACK, while
+    /// an inline video composites into the capturable window surface (verified on real Win11). Switches the
+    /// watch page to THEATER mode to make that inline player as large as possible (toward 1080p), forces
+    /// playback + unmute and pins <c>hd1080</c>, and reports: the source pixel dims (<c>dims:[w,h]</c> →
+    /// landscape/portrait output), the video element's rect as window fractions (<c>rect:[x,y,w,h]</c> → the
+    /// host crops to the video only, dropping page chrome) and stream end (<c>state:'ended'</c>).</summary>
     public const string FillPlayAndReportScript = """
         (function () {
-          var fill = 'visibility:visible!important;position:fixed!important;left:0!important;top:0!important;' +
-            'right:0!important;bottom:0!important;width:100vw!important;height:100vh!important;' +
-            'min-width:0!important;min-height:0!important;max-width:none!important;max-height:none!important;' +
-            'margin:0!important;padding:0!important;transform:none!important;overflow:visible!important;background:#000!important';
-          var css = 'html,body{background:#000!important;overflow:hidden!important;margin:0!important;padding:0!important}' +
-            'body *{visibility:hidden!important}' +
-            'ytd-app,#content,#page-manager,ytd-watch-flexy,#full-bleed-container,#player-full-bleed-container,' +
-            '#player-theater-container,#columns,#primary,#primary-inner,#player,#player-container,' +
-            '#player-container-inner,#player-api,#movie_player,.html5-video-player,.html5-video-container{' + fill + '}' +
-            'video{visibility:visible!important;position:absolute!important;left:0!important;top:0!important;' +
-            'width:100%!important;height:100%!important;object-fit:contain!important;' +
-            'z-index:2147483647!important;background:#000!important;transform:none!important}';
-          var style = document.createElement('style');
-          style.textContent = css;
-          (document.documentElement || document.body).appendChild(style);
           function post(o) { try { window.chrome.webview.postMessage(o); } catch (e) {} }
+          function player() { return document.getElementById('movie_player'); }
+          function ensureTheater() {
+            try {
+              var flexy = document.querySelector('ytd-watch-flexy');
+              if (flexy && !flexy.hasAttribute('theater')) {
+                var b = document.querySelector('.ytp-size-button');
+                if (b) b.click(); // enlarge the inline player (stays inline → still WGC-capturable)
+              }
+            } catch (e) {}
+          }
           var lastW = 0, lastH = 0;
           function tick() {
             try {
-              var p = document.getElementById('movie_player');
-              var v = document.querySelector('video');
+              var p = player(), v = document.querySelector('video');
               if (v) {
                 if (v.muted) v.muted = false;
                 if (v.volume < 1) v.volume = 1.0;
                 if (v.paused && !v.ended) { var pr = v.play(); if (pr && pr.catch) pr.catch(function () {}); }
                 if (v.videoWidth > 0 && (v.videoWidth !== lastW || v.videoHeight !== lastH)) {
                   lastW = v.videoWidth; lastH = v.videoHeight;
-                  post({ type: 'ytrec', dims: [v.videoWidth, v.videoHeight] }); // host → landscape/portrait output
+                  post({ type: 'ytrec', dims: [v.videoWidth, v.videoHeight] });
                 }
                 if (!v.__ytrecHooked) {
                   v.__ytrecHooked = true;
                   v.addEventListener('ended', function () { post({ type: 'ytrec', state: 'ended' }); });
                 }
+                var r = v.getBoundingClientRect(), W = window.innerWidth, H = window.innerHeight;
+                if (r.width > 80 && r.height > 80 && W > 0 && H > 0)
+                  post({ type: 'ytrec', rect: [r.left / W, r.top / H, r.width / W, r.height / H] });
               }
               if (p) {
                 if (p.unMute) p.unMute();
                 if (p.setPlaybackQualityRange) p.setPlaybackQualityRange('hd1080', 'hd1080'); // pin 1080p
-                if (p.setSize) { try { p.setSize(window.innerWidth, window.innerHeight); } catch (e) {} }
-                if (p.getPlayerState && p.getPlayerState() === 0) post({ type: 'ytrec', state: 'ended' }); // 0 = ENDED
+                if (p.getPlayerState && p.getPlayerState() === 0) post({ type: 'ytrec', state: 'ended' }); // 0=ENDED
               }
-              try { window.dispatchEvent(new Event('resize')); } catch (e) {}
+              ensureTheater();
             } catch (e) {}
           }
           tick(); setTimeout(tick, 1000); setTimeout(tick, 3000); setInterval(tick, 2000);

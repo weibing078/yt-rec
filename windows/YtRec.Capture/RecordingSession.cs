@@ -59,10 +59,16 @@ public sealed class RecordingSession : IDisposable
     private int _previewCounter;
 
     /// <summary>The deterministic output size (content-driven, from <see cref="YtRec.Core.CaptureGeometry"/>).
-    /// The whole captured window — the player now fills it edge-to-edge — is scaled+padded to exactly this, so
-    /// the file is screen/DPI-independent. Null → output the captured window size as-is (even-trimmed).</summary>
+    /// The captured (cropped) video region is scaled+padded to exactly this, so the file is screen/DPI-
+    /// independent. Null → output the captured size as-is (even-trimmed).</summary>
     public (int W, int H)? TargetSize { get; set; }
     private int _inW, _inH;
+
+    /// <summary>Crop (fractions of the captured window) to the INLINE video region reported by the page. Keeping
+    /// the video inline (not fullscreen-filled) is what makes it composite into the WGC-capturable window
+    /// surface instead of a GPU overlay WGC renders black; the crop drops the surrounding page chrome.</summary>
+    public (double X, double Y, double W, double H)? CropFrac { get; set; }
+    private int _cropX, _cropY;
 
     public RecordingSession(IntPtr captureHwnd, AudioLoopbackCapture audio,
         string ffmpegPath, string segmentsDir, string audioPcmPath, int fps = 30)
@@ -154,7 +160,18 @@ public sealed class RecordingSession : IDisposable
             if (_ff is null)
             {
                 _capW = w; _capH = h;
-                _inW = w & ~1; _inH = h & ~1;   // even input for yuv420p (drop the odd last row/col)
+                if (CropFrac is (double fx, double fy, double fw, double fh))
+                {
+                    _cropX = Math.Clamp((int)(fx * w), 0, w - 2);
+                    _cropY = Math.Clamp((int)(fy * h), 0, h - 2);
+                    _inW = Math.Clamp((int)(fw * w), 2, w - _cropX) & ~1;
+                    _inH = Math.Clamp((int)(fh * h), 2, h - _cropY) & ~1;
+                }
+                else
+                {
+                    _cropX = 0; _cropY = 0;
+                    _inW = w & ~1; _inH = h & ~1;   // even input for yuv420p (drop the odd last row/col)
+                }
                 (_result.Width, _result.Height) = TargetSize is { } t ? (t.W, t.H) : (_inW, _inH);
                 _staging = _d3d!.CreateTexture2D(FrameReadback.StagingDesc(w, h, desc.Format));
                 _frameBuf = new byte[_inW * _inH * 4];
@@ -171,7 +188,7 @@ public sealed class RecordingSession : IDisposable
                 return;
             }
 
-            FrameReadback.CopyToBuffer(_context!, _staging!, src, _frameBuf!, _inW, _inH);
+            FrameReadback.CopyCropToBuffer(_context!, _staging!, src, _frameBuf!, _cropX, _cropY, _inW, _inH);
 
             // Real-time CFR pacing (clock starts at the first post-gate frame): emit the latest frame as many
             // times as wall-clock says are due so the file plays at true speed.
