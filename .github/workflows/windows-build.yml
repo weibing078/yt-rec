@@ -33,6 +33,12 @@ jobs:
       - name: Build YtRec.Capture + probe (WGC, Phase 2a)
         run: dotnet build windows/YtRec.CaptureProbe/YtRec.CaptureProbe.csproj -c Release -p:Platform=x64
 
+      # Fetch yt-dlp.exe + ffmpeg.exe so the portable build bundles them (BinaryLocator looks in
+      # <appdir>/vendor/bin); without them a real user sees "missing tools" and can't record/download.
+      - name: Fetch vendored binaries (yt-dlp + ffmpeg)
+        shell: pwsh
+        run: ./tools/setup-binaries.ps1
+
       # WinUI 3 PRI/AppxPackage tasks live in VS MSBuild, not the bare .NET SDK,
       # so build the app with msbuild (/restore handles NuGet).
       - name: Build YtRec.App (WinUI 3, x64)

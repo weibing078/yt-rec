@@ -40,6 +40,16 @@
     <PRIResource Include="Strings\**\*.resw" />
   </ItemGroup>
 
+  <!-- Bundle yt-dlp.exe + ffmpeg.exe into <appdir>/vendor/bin so BinaryLocator finds them at runtime
+       (fetched by tools/setup-binaries.ps1 in CI; not committed). Without these the app can't record/download. -->
+  <ItemGroup>
+    <None Include="..\vendor\bin\*.exe" Condition="Exists('..\vendor\bin')">
+      <Link>vendor\bin\%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+  </ItemGroup>
+
   <!-- The publish step drops the app's resources.pri (WindowsAppSDK#3451). Copy it into the publish folder
        so the GUI can locate its XAML windows; without it the app crashes on launch. -->
   <Target Name="CopyAppPriToPublish" AfterTargets="Publish">
