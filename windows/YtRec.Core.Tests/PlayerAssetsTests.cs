@@ -38,4 +38,23 @@ public class PlayerAssetsTests
         Assert.Contains("dims: [v.videoWidth, v.videoHeight]", s);         // source dims → orientation
         Assert.Contains("state: 'ended'", s);                             // stream-end signal
     }
+
+    [Fact]
+    public void PlayerScriptSkipsAdsAndGatesRecordingOnContent()
+    {
+        var s = PlayerAssets.FillPlayAndReportScript;
+        Assert.Contains("ad-showing", s);            // detects an ad on the player
+        Assert.Contains("ytp-ad-skip-button", s);    // auto-clicks the skip control
+        Assert.Contains("ad: ad", s);                // reports ad state to the host
+        Assert.Contains("ready: ready", s);          // reports content-ready so the host gates the writer
+    }
+
+    [Fact]
+    public void SeekBehindScriptTargetsRelativeToLiveEdge()
+    {
+        var s = PlayerAssets.SeekBehindScript(120.5);
+        Assert.Contains("getProgressState", s);
+        Assert.Contains("seekableEnd-(120.5)", s);   // relative to the moving live edge, invariant-formatted
+        Assert.Contains("seekTo(t,true)", s);
+    }
 }

@@ -81,6 +81,36 @@ it from the same rule (`CaptureGeometry`).
   - the **WGC yellow capture border is disabled** (`IsBorderRequired = false`) so it
     appears neither on screen nor in the output.
 
+## Live rewind scrubber (preview → record-from-here)
+For a live stream with a DVR window the user **previews first**, rewinds to the moment
+to start, then records from there. The scrubber math is pure (`DvrScrubber`), L1-tested
+on both platforms (macOS implements it inline in the monitor UI). Fraction `0` = oldest
+rewindable point, `1` = live edge.
+- `window = max(1, dvrWindowSec)`. The scrubber is shown **only when
+  `dvrWindowSec > 90`** (a window of ≤ 90 s is too short to position in).
+- `liveFrac = clamp(1 − behindLiveSec / window, 0, 1)`.
+- Knob position (`shownFrac`): the live **drag** value while dragging; else the held
+  release **settle** target (`1 − settleTargetBehind / window`); else `liveFrac`.
+- `shownBehind = max(0, (1 − shownFrac) · window)`; a fraction → seek target is
+  `behindForFrac(f) = max(0, (1 − f) · window)`.
+- Position readout: `< 3 s` behind → `● 直播即時`; else `落後直播 <M:SS>`.
+- Drag-release **hold**: after release the knob is held at the target until a fresh
+  polled position lands within `tolerance = max(2, window · 0.02)` of it (stops the knob
+  snapping back to a stale pre-seek poll); a 2.5 s fallback releases it.
+- Tick marks: none for `window ≤ 120 s`; else spacing = 1 h (`window ≥ 2 h`) / 10 min
+  (`≥ 10 min`) / else 1 min, at fractions measured from the live edge.
+- **Record-from-here** begins writing from the current player position; **cancel
+  preview** tears down with **no file produced** (mirrors the §Stop "positioning" rule).
+
+## Ad gate (no-Premium: never record an ad)
+Side-record only — the download (yt-dlp) path is ad-free by construction.
+- The injected player script auto-clicks any **skip** control the instant it appears,
+  keeps an ad **muted**, and never reports an ad's geometry as the capture size.
+- Recording start is **gated on real content**: `contentReady` = a non-ad video is
+  actually playing (`!ad && !paused && currentTime > 0 && readyState ≥ 3 &&
+  videoWidth > 0`). The writer waits for `contentReady` (cap **45 s**, then proceed so a
+  detection miss can't hang), then the normal audio-settle + session gate apply.
+
 ## Session gate (the corruption-prevention rule)
 - The **first audio sample** sets the session start (PTS baseline).
 - Audio: if `audioDisabled` → drop; else if not started → start session; else

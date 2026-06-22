@@ -49,4 +49,14 @@
   <data name="RecordButtonText.Text"><value>Record</value></data>
   <data name="RecordButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name"><value>Start screen side-recording</value></data>
   <data name="RecordHint.Text"><value>Record = capture what plays (for lives / undownloadable)</value></data>
+  <data name="PreviewHeader.Text"><value>Rewind to your start point</value></data>
+  <data name="OldestLabel.Text"><value>Oldest</value></data>
+  <data name="LiveLabel.Text"><value>Live</value></data>
+  <data name="RewindMinuteButton.Content"><value>−1 min</value></data>
+  <data name="Rewind10sButton.Content"><value>−10 s</value></data>
+  <data name="Forward10sButton.Content"><value>+10 s</value></data>
+  <data name="JumpLiveButton.Content"><value>Back to live</value></data>
+  <data name="BeginRecordButtonText.Text"><value>Start recording here</value></data>
+  <data name="BeginRecordButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name"><value>Start recording here</value></data>
+  <data name="CancelPreviewButton.Content"><value>Cancel preview</value></data>
 </root>

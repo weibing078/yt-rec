@@ -49,4 +49,14 @@
   <data name="RecordButtonText.Text"><value>側錄</value></data>
   <data name="RecordButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name"><value>開始螢幕側錄</value></data>
   <data name="RecordHint.Text"><value>側錄＝照著畫面錄（直播 / 無法下載時用）</value></data>
+  <data name="PreviewHeader.Text"><value>倒帶到要開始錄的時間點</value></data>
+  <data name="OldestLabel.Text"><value>最舊</value></data>
+  <data name="LiveLabel.Text"><value>直播即時</value></data>
+  <data name="RewindMinuteButton.Content"><value>−1 分</value></data>
+  <data name="Rewind10sButton.Content"><value>−10 秒</value></data>
+  <data name="Forward10sButton.Content"><value>+10 秒</value></data>
+  <data name="JumpLiveButton.Content"><value>回到直播</value></data>
+  <data name="BeginRecordButtonText.Text"><value>從這裡開始錄影</value></data>
+  <data name="BeginRecordButton.[using:Microsoft.UI.Xaml.Automation]AutomationProperties.Name"><value>從這裡開始錄影</value></data>
+  <data name="CancelPreviewButton.Content"><value>取消監看</value></data>
 </root>

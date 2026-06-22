@@ -1,16 +1,31 @@
 # Status & Resume Point
 
-> Updated: 2026-06-21. Living doc — the place to pick up from. Per-feature detail lives
+> Updated: 2026-06-22. Living doc — the place to pick up from. Per-feature detail lives
 > in [shared/spec/parity-matrix.md](../shared/spec/parity-matrix.md).
 
 ## One line
 **Launch-ready: the Windows app is a polished, no-install product — full GUI flow verified on real Win11.**
-Paste URL → click **側錄** → records clean **1920×1080** (or **1080×1920** vertical, full-frame), **pure
-video with no YouTube UI** (all player chrome hidden), **complete (not cropped)**, isolated audio. The
-capture window is **invisible like Mac** (pushed off-screen, click-through — no lid, no visible YouTube
-page; only the small viewfinder shows). Click **停止** → file in the **recent list**; **下載** grabs a VOD.
-Mica window + real app icon; binaries bundled (runs from a fresh extract). Mac records 1080p+vertical via
-SCK. Signing skipped per owner.
+Paste URL → click **側錄** → opens a live **preview** (no file yet); for a live stream a **DVR rewind
+scrubber** + nudge buttons let you rewind, then **「從這裡開始錄影」** records clean **1920×1080** (or
+**1080×1920** vertical, full-frame), **pure video with no YouTube UI**, **complete**, isolated audio — and
+**never an ad** (auto-skip + content gate, no-Premium). The capture window is **invisible like Mac** and
+**loads off-screen so YouTube never flashes** on startup. Click **停止** → file in the **recent list**;
+**下載** grabs a VOD. Mica window + real app icon; binaries bundled. Mac records 1080p+vertical via SCK.
+Signing skipped per owner.
+
+## Built 2026-06-22 (rewind preview + ad gate + no-flash startup) — all verified, **uncommitted**
+- **Live rewind recording (Windows, NEW)** — 側錄 → preview (no file) → DVR scrubber/nudge rewind →
+  「從這裡開始錄影」 records from that point. Pure `DvrScrubber`/`Timecode`/`ParseProgress` (142 C# L1 tests);
+  `CaptureController` `PrepareAsync`/`BeginRecording` split; `RecordingSession` preview-vs-write split;
+  `PreviewReady` gate. **Verified on real Win11**: `--previewseek` on a VOD (360 frames) + **live Al Jazeera**
+  (DVR 43183 s, seek 120→122.7 s, 1080p), and a **GUI UIA walkthrough** (側錄→scrubber@live→從這裡開始錄影→
+  停止→1.81 MB 1080p Al Jazeera file). Edge: a stream with a malformed DVR range (lofi) renders only 1
+  off-screen frame — known limitation (see VERIFIED-BEHAVIOR §11).
+- **Ad gate, no-Premium (both platforms)** — injected script auto-skips ads + mutes them; Windows writer
+  gates on `contentReady`. Win11-verified gate; backported to mac `playerTakeoverJS`. L1 smoke tests both.
+- **No-flash startup (Windows)** — the off-screen player is **born off-screen** (not at 0,0 then moved), so
+  YouTube loads off-screen and never flashes. Runtime-verified (clean load-phase frames).
+- **Tests green**: C# Core 142, mac 167. behavior-spec + parity-matrix updated.
 
 ## Verified end-to-end on real Win11 (machine `home`, build 26200)
 - **Killer feature — per-process audio isolation = 33 dB** (target tone −24 dB while another

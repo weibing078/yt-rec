@@ -268,7 +268,29 @@ and **[PARITY]** for things the Windows port must replicate.
   accepted hearing the stream as long as no *other* app audio leaks in.
 - In-app clip trimming was **removed** (owner decision): the app is a pure
   recorder; editing happens in Premiere. "You get exactly what you recorded."
-- Live ads are recorded as-is (edit out later).
+- **Live ads are now auto-skipped + gated** (2026-06-22, was "recorded as-is"): the injected player script
+  clicks the skip control + mutes the ad + never reports an ad's geometry; the Windows writer waits for
+  `contentReady` so a no-Premium pre-roll never lands in the file. Side-record only — the yt-dlp download
+  path is ad-free anyway. Verified on Win11; backported to mac `playerTakeoverJS`.
 - Stream-end detection: relying on the player `ended` event is unreliable
   (YouTube may switch player state instead of firing `video.ended`); may need
   player-state polling.
+
+## 13. Live rewind recording + the off-screen-render edge (2026-06-22)
+
+- **[VERIFIED] Preview → rewind → record-from-here works on Windows.** `--previewseek` on a VOD (Big Buck
+  Bunny: preview 248 frames, seek 60→58.2 s, recorded 360 frames) and a **live news stream** (Al Jazeera:
+  DVR window 43183 s, behind-live 0 at the edge, seek 120→122.7 s, clean 1920×1080). A GUI UIAutomation
+  walkthrough drove the real app end to end: 側錄 → preview panel + scrubber (knob at the live edge) →
+  從這裡開始錄影 → 停止 → a 1.81 MB 1920×1080 Al Jazeera file. The scrubber math is pure (`DvrScrubber`, 20
+  L1 tests); `ParseProgress` tolerates WebView2's double-encoded JSON + the literal `null`.
+- **[PITFALL] A malformed DVR range starves the off-screen capture.** lofi-girl's live `getProgressState()`
+  returned `seekableStart=0, seekableEnd≈1.2e8, current=0` (a ~3.8-year "window" with the player parked at
+  position 0). The off-screen player then rendered only **1 frame** to the WGC surface (audio decoded fine),
+  so the recording got 0 video frames — while the seek itself still landed correctly (behind=120 → 120.0).
+  Normal lives (Al Jazeera ~12 h DVR) and VODs are unaffected. A future hardening could seek-to-live on
+  preview start and/or reject implausible (`current==0` with a huge window) ranges.
+- **[VERIFIED] The `RecordingSession` preview-vs-write split is safe for record-now.** Splitting `Start()`
+  (preview, no file) from `BeginWriting()` did **not** regress the record-now path — autorecord (Prepare +
+  immediate BeginRecording) still records 359–360 frames, 0 dropped, ffmpeg exit 0. Preview mirrors frames
+  to the viewfinder with nothing written until `BeginWriting()`.

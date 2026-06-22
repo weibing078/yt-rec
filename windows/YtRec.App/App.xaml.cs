@@ -39,8 +39,68 @@ public partial class App : Application
             return;
         }
 
+        // Headless verification of the live preview + rewind feature (not user-facing):
+        //   YtRec.App.exe --previewseek <live-url> <behindSec> <seconds> <outDir>
+        // Prepares the live preview (no file), polls the DVR position, rewinds <behindSec> behind live, confirms
+        // the player moved there, then records <seconds> FROM that point. Logs assertable values.
+        var j = Array.IndexOf(cmd, "--previewseek");
+        if (j >= 0 && cmd.Length >= j + 5 && double.TryParse(cmd[j + 2], out var behind) && int.TryParse(cmd[j + 3], out var psecs))
+        {
+            _ = RunPreviewSeekAsync(cmd[j + 1], behind, psecs, cmd[j + 4]);
+            return;
+        }
+
         _window = new MainWindow();
         _window.Activate();
+    }
+
+    private async Task RunPreviewSeekAsync(string url, double behindSec, int seconds, string outDir)
+    {
+        Directory.CreateDirectory(outDir);
+        var log = Path.Combine(outDir, "previewseek.log");
+        void Log(string m) { try { File.AppendAllText(log, m + "\n"); } catch { } }
+        try
+        {
+            var ffmpeg = BinaryLocator.Resolve(BinaryLocator.Tool.Ffmpeg) ?? throw new Exception("ffmpeg not found");
+            var jobDir = Path.Combine(outDir, "job");
+            Directory.CreateDirectory(jobDir);
+
+            var ctrl = new CaptureController(ffmpeg);
+            var done = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+            ctrl.Status += s => Log("status: " + s);
+            ctrl.Finished += p => { Log("FINISHED: " + p); done.TrySetResult("ok:" + p); };
+            ctrl.Failed += m => { Log("FAILED: " + m); done.TrySetResult("fail:" + m); };
+
+            Log($"previewseek url={url} behind={behindSec} seconds={seconds}");
+            await ctrl.PrepareAsync(url, jobDir, "previewseek");                 // PREVIEW — no file written yet
+            Log("PREVIEW up; IsPreviewing=" + ctrl.IsPreviewing + " IsRecording=" + ctrl.IsRecording);
+
+            for (int k = 0; k < 4; k++)                                         // observe the live DVR position
+            {
+                await Task.Delay(1000);
+                var p = await ctrl.ProgressAsync();
+                Log($"poll[{k}] dvrWindow={p?.DvrWindowSec:F1} behindLive={p?.BehindLiveSec:F1}");
+            }
+
+            await ctrl.SeekToBehindAsync(behindSec);                            // rewind
+            Log($"seeked to behind={behindSec}");
+            await Task.Delay(2500);
+            var after = await ctrl.ProgressAsync();
+            Log($"after-seek behindLive={after?.BehindLiveSec:F1} (target {behindSec})");
+
+            ctrl.BeginRecording();                                             // record FROM the rewound point
+            Log("BeginRecording; IsPreviewing=" + ctrl.IsPreviewing + " IsRecording=" + ctrl.IsRecording);
+            await Task.Delay(seconds * 1000);
+            await ctrl.StopAsync();
+            await Task.WhenAny(done.Task, Task.Delay(30000));
+            Log("result: " + (done.Task.IsCompleted ? done.Task.Result : "timeout"));
+        }
+        catch (Exception e) { Log("EXCEPTION: " + e); }
+        finally
+        {
+            try { File.WriteAllText(Path.Combine(outDir, "previewseek.done"), "done\n"); } catch { }
+            Exit();
+        }
     }
 
     private async Task RunAutoRecordAsync(string url, int seconds, string outDir)

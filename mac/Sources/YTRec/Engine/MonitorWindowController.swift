@@ -493,21 +493,31 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
           }
           var v = document.querySelector('video');
           if (!v) return;
-          if (v.videoWidth > 0 && (v.videoWidth + 'x' + v.videoHeight) !== sentDims) {
-            sentDims = v.videoWidth + 'x' + v.videoHeight;   // 直/橫式判斷用：回報來源影片像素尺寸
-            window.webkit.messageHandlers.lcf.postMessage('dims:' + sentDims);
-          }
-          if (v.muted) v.muted = false;
-          if (v.volume < 1) v.volume = 1.0;
-          if (v.paused && !v.ended) { var p = v.play(); if (p && p.catch) p.catch(function () {}); }
           var mp = document.getElementById('movie_player');
-          if (mp) {
-            if (mp.unMute) mp.unMute();
-            if (mp.setPlaybackQualityRange) mp.setPlaybackQualityRange('hd1080', 'hd1080');
-            // 讓播放器把內部繪製尺寸對齊視窗（撐滿後媒體圖層才會滿版）
-            if (mp.setSize) { try { mp.setSize(window.innerWidth, window.innerHeight); } catch (e) {} }
+          var ad = !!(mp && mp.classList && (mp.classList.contains('ad-showing') || mp.classList.contains('ad-interrupting')));
+          if (ad) {
+            // No-Premium: an ad must never land in the recording. Auto-skip any skippable ad the instant a
+            // skip control appears, keep the ad silent, and never report its geometry as the source dims.
+            var sb = document.querySelectorAll('.ytp-ad-skip-button-modern,.ytp-ad-skip-button,.ytp-skip-ad-button,.ytp-ad-skip-button-container button,.ytp-ad-skip-button-slot button');
+            for (var i = 0; i < sb.length; i++) { try { sb[i].click(); } catch (e) {} }
+            if (!v.muted) v.muted = true;
+            if (v.paused && !v.ended) { var pa = v.play(); if (pa && pa.catch) pa.catch(function () {}); }
+          } else {
+            if (v.videoWidth > 0 && (v.videoWidth + 'x' + v.videoHeight) !== sentDims) {
+              sentDims = v.videoWidth + 'x' + v.videoHeight;   // 直/橫式判斷用：回報來源影片像素尺寸
+              window.webkit.messageHandlers.lcf.postMessage('dims:' + sentDims);
+            }
+            if (v.muted) v.muted = false;
+            if (v.volume < 1) v.volume = 1.0;
+            if (v.paused && !v.ended) { var p = v.play(); if (p && p.catch) p.catch(function () {}); }
+            if (mp) {
+              if (mp.unMute) mp.unMute();
+              if (mp.setPlaybackQualityRange) mp.setPlaybackQualityRange('hd1080', 'hd1080');
+              // 讓播放器把內部繪製尺寸對齊視窗（撐滿後媒體圖層才會滿版）
+              if (mp.setSize) { try { mp.setSize(window.innerWidth, window.innerHeight); } catch (e) {} }
+            }
+            try { window.dispatchEvent(new Event('resize')); } catch (e) {}
           }
-          try { window.dispatchEvent(new Event('resize')); } catch (e) {}
           if (!v.__lcfHooked) {
             v.__lcfHooked = true;
             v.addEventListener('playing', function () { window.webkit.messageHandlers.lcf.postMessage('playing'); });
@@ -517,7 +527,9 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
         } catch (e) {}
       };
       tick();
-      setInterval(tick, 2000);
+      setTimeout(tick, 500);
+      setTimeout(tick, 1500);
+      setInterval(tick, 1000);
     })();
     """
 }

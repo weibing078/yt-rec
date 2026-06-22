@@ -76,6 +76,62 @@
                 <TextBlock x:Uid="RecordHint" FontSize="11"
                            Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
 
+                <!-- Live preview + rewind scrubber (Track B phase 1) -->
+                <Border Visibility="{x:Bind local:XamlHelpers.Vis(Vm.IsPreviewing), Mode=OneWay}"
+                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1"
+                        CornerRadius="9" Padding="12">
+                    <StackPanel Spacing="10">
+                        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <muxc:ProgressRing IsActive="True" Width="14" Height="14"/>
+                            <TextBlock x:Uid="PreviewHeader" FontSize="13" FontWeight="SemiBold"/>
+                        </StackPanel>
+                        <TextBlock Text="{x:Bind Vm.StatusText, Mode=OneWay}" FontSize="12"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"/>
+
+                        <!-- Scrubber: only for a live stream with a DVR window -->
+                        <StackPanel Spacing="6"
+                                    Visibility="{x:Bind local:XamlHelpers.Vis(Vm.ShowScrubber), Mode=OneWay}">
+                            <Grid ColumnDefinitions="Auto,*,Auto">
+                                <TextBlock Grid.Column="0" x:Uid="OldestLabel" FontSize="11"
+                                           Foreground="{ThemeResource TextFillColorTertiaryBrush}"/>
+                                <TextBlock Grid.Column="2" x:Uid="LiveLabel" FontSize="11"
+                                           Foreground="{ThemeResource BrandDangerTextBrush}"/>
+                            </Grid>
+                            <Slider Minimum="0" Maximum="1" StepFrequency="0.001" IsThumbToolTipEnabled="False"
+                                    Value="{x:Bind Vm.ScrubberValue, Mode=TwoWay}"/>
+                            <TextBlock Text="{x:Bind Vm.PreviewPositionText, Mode=OneWay}" FontSize="12"
+                                       HorizontalAlignment="Center"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+                            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                <Button x:Uid="RewindMinuteButton" Command="{x:Bind Vm.RewindMinuteCommand}" Padding="10,4"/>
+                                <Button x:Uid="Rewind10sButton" Command="{x:Bind Vm.Rewind10sCommand}" Padding="10,4"/>
+                                <Button x:Uid="Forward10sButton" Command="{x:Bind Vm.Forward10sCommand}" Padding="10,4"/>
+                                <Button x:Uid="JumpLiveButton" Command="{x:Bind Vm.JumpLiveCommand}" Padding="10,4"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Primary action: start recording from the current (rewound) position -->
+                        <Button x:Uid="BeginRecordButton" CornerRadius="7" HorizontalAlignment="Stretch"
+                                Command="{x:Bind Vm.BeginRecordCommand}">
+                            <Button.Resources>
+                                <SolidColorBrush x:Key="ButtonBackground" Color="#FF2E45"/>
+                                <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FF3D52"/>
+                                <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#D5002A"/>
+                                <SolidColorBrush x:Key="ButtonForeground" Color="White"/>
+                                <SolidColorBrush x:Key="ButtonForegroundPointerOver" Color="White"/>
+                                <SolidColorBrush x:Key="ButtonForegroundPressed" Color="White"/>
+                            </Button.Resources>
+                            <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
+                                <Ellipse Width="11" Height="11" Fill="White" VerticalAlignment="Center"/>
+                                <TextBlock x:Uid="BeginRecordButtonText"/>
+                            </StackPanel>
+                        </Button>
+                        <HyperlinkButton x:Uid="CancelPreviewButton" HorizontalAlignment="Center"
+                                         Command="{x:Bind Vm.CancelPreviewCommand}"/>
+                    </StackPanel>
+                </Border>
+
                 <!-- Clip-section (optional) -->
                 <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <TextBlock x:Uid="SectionLabel" VerticalAlignment="Center"

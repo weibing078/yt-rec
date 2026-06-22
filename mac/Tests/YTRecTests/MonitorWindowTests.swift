@@ -113,6 +113,8 @@ final class InjectedJSSmokeTests: XCTestCase {
         XCTAssertTrue(js.contains("postMessage('ended')"))         // ended 回報（自動收工靠它）
         XCTAssertTrue(js.contains("'title:'"))                      // 標題回報
         XCTAssertTrue(js.contains("'dims:'"))                       // 來源尺寸回報（直式偵測靠它）
+        XCTAssertTrue(js.contains("ad-showing"))                    // 偵測廣告（沒買 Premium 也不錄到廣告）
+        XCTAssertTrue(js.contains("ytp-ad-skip-button"))            // 自動略過廣告
     }
     func testVisibilitySpoofKeepsCriticalLines() {
         let js = MonitorWindowController.visibilitySpoofJS

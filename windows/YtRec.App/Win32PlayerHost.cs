@@ -35,6 +35,15 @@ public sealed class Win32PlayerHost
     /// fresh one after resizing the window.</summary>
     public void ClearVideoRect() => VideoRectFrac = null;
 
+    /// <summary>True once the injected script reports REAL content (not an ad) is actually playing. The host
+    /// gates recording-start on this so a non-Premium user's pre-roll ad is never recorded. Resets to false
+    /// whenever an ad is on screen or the stream isn't rolling yet.</summary>
+    public bool ContentReady { get; private set; }
+
+    /// <summary>True while a YouTube ad is on screen (the script auto-skips skippable ones). Surfaced so the
+    /// UI can show "略過廣告中…" while the gate waits for content.</summary>
+    public bool AdShowing { get; private set; }
+
     private CoreWebView2Controller? _controller;
     private CoreWebView2? _core;
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -46,11 +55,13 @@ public sealed class Win32PlayerHost
         // On-screen (must be — Windows won't composite a fully off-screen window, so WGC gets no frames), but
         // background/coverable: NOT topmost, WS_EX_NOACTIVATE (no focus-steal), sent to the back. WGC
         // window-capture keeps capturing it while it's covered by the user's windows (verified), so the user
-        // works over it (mac §4 occludable). Placed at top-left behind everything.
-        // WS_EX_TRANSPARENT → click-through: the 2 px on-screen sliver can never be accidentally clicked by the
-        // user (events pass to whatever is behind). NOACTIVATE = no focus-steal; TOOLWINDOW = no taskbar/Alt-Tab.
+        // works over it (mac §4 occludable). Created OFF-SCREEN from the start — pushed 99.99% off the top-left,
+        // leaving only a 2 px sliver on-screen so DWM keeps compositing it for WGC — so YouTube LOADS off-screen
+        // and never flashes full-size on the main monitor (mac parity: the capture window is born off-screen).
+        // WS_EX_TRANSPARENT → click-through: the 2 px sliver can never be accidentally clicked by the user
+        // (events pass to whatever is behind). NOACTIVATE = no focus-steal; TOOLWINDOW = no taskbar/Alt-Tab.
         Hwnd = CreateWindowEx(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT, ClassName, "YT Rec Player",
-            WS_POPUP, 0, 0, Width, Height, IntPtr.Zero, IntPtr.Zero, hInst, IntPtr.Zero);
+            WS_POPUP, 2 - Width, 2 - Height, Width, Height, IntPtr.Zero, IntPtr.Zero, hInst, IntPtr.Zero);
         if (Hwnd == IntPtr.Zero) throw new InvalidOperationException("CreateWindowEx failed: " + Marshal.GetLastWin32Error());
         ShowWindow(Hwnd, SW_SHOWNA);
         SetWindowPos(Hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
@@ -78,6 +89,10 @@ public sealed class Win32PlayerHost
                     VideoDims = (d[0].GetInt32(), d[1].GetInt32());
                 if (root.TryGetProperty("rect", out var r) && r.ValueKind == JsonValueKind.Array && r.GetArrayLength() == 4)
                     VideoRectFrac = (r[0].GetDouble(), r[1].GetDouble(), r[2].GetDouble(), r[3].GetDouble());
+                if (root.TryGetProperty("ready", out var rdy) && (rdy.ValueKind == JsonValueKind.True || rdy.ValueKind == JsonValueKind.False))
+                    ContentReady = rdy.GetBoolean();
+                if (root.TryGetProperty("ad", out var adv) && (adv.ValueKind == JsonValueKind.True || adv.ValueKind == JsonValueKind.False))
+                    AdShowing = adv.GetBoolean();
             }
             catch { }
         };
@@ -113,6 +128,12 @@ public sealed class Win32PlayerHost
     public async Task SeekAsync(double seconds)
     {
         if (_core is not null) await _core.ExecuteScriptAsync(PlayerAssets.SeekScript(seconds));
+    }
+
+    /// <summary>Rewind to <paramref name="behindSeconds"/> behind the live edge (clamped to the DVR window).</summary>
+    public async Task SeekBehindAsync(double behindSeconds)
+    {
+        if (_core is not null) await _core.ExecuteScriptAsync(PlayerAssets.SeekBehindScript(behindSeconds));
     }
 
     public async Task<string?> ProgressStateAsync()

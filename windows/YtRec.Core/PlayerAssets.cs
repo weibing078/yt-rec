@@ -71,43 +71,67 @@ public static class PlayerAssets
               }
             } catch (e) {}
           }
+          // An ad is playing when YouTube tags the player with ad-showing / ad-interrupting.
+          function adShowing() {
+            var p = player();
+            return !!(p && p.classList && (p.classList.contains('ad-showing') || p.classList.contains('ad-interrupting')));
+          }
+          // Auto-skip any skippable ad the instant a skip control is offered (class names vary across rollouts).
+          function trySkipAd() {
+            try {
+              var sel = '.ytp-ad-skip-button-modern,.ytp-ad-skip-button,.ytp-skip-ad-button,.ytp-ad-skip-button-container button,.ytp-ad-skip-button-slot button';
+              var btns = document.querySelectorAll(sel);
+              for (var i = 0; i < btns.length; i++) { try { btns[i].click(); } catch (e) {} }
+            } catch (e) {}
+          }
           var lastW = 0, lastH = 0;
           function tick() {
             try {
               var p = player(), v = document.querySelector('video');
+              var ad = adShowing();
+              if (ad) trySkipAd();
               if (v) {
-                if (v.muted) v.muted = false;
-                if (v.volume < 1) v.volume = 1.0;
-                if (v.paused && !v.ended) { var pr = v.play(); if (pr && pr.catch) pr.catch(function () {}); }
-                if (v.videoWidth > 0 && (v.videoWidth !== lastW || v.videoHeight !== lastH)) {
-                  lastW = v.videoWidth; lastH = v.videoHeight;
-                  post({ type: 'ytrec', dims: [v.videoWidth, v.videoHeight] });
+                if (ad) {
+                  // During an ad: keep it silent (no ad audio on the box during preview) and DON'T report
+                  // its geometry (don't resize the capture window to the ad's aspect).
+                  if (!v.muted) v.muted = true;
+                } else {
+                  if (v.muted) v.muted = false;
+                  if (v.volume < 1) v.volume = 1.0;
+                  if (v.paused && !v.ended) { var pr = v.play(); if (pr && pr.catch) pr.catch(function () {}); }
+                  if (v.videoWidth > 0 && (v.videoWidth !== lastW || v.videoHeight !== lastH)) {
+                    lastW = v.videoWidth; lastH = v.videoHeight;
+                    post({ type: 'ytrec', dims: [v.videoWidth, v.videoHeight] });
+                  }
+                  // Crop to the actual PICTURE, not the player box: a vertical video sits letterboxed inside a
+                  // wider player element, so cropping the element gives big black pillars. Compute the
+                  // object-fit:contain picture rect from the source aspect so the output fills the frame.
+                  var er = v.getBoundingClientRect(), W = window.innerWidth, H = window.innerHeight;
+                  var vw = v.videoWidth, vh = v.videoHeight;
+                  if (er.width > 80 && er.height > 80 && W > 0 && H > 0 && vw > 0 && vh > 0) {
+                    var sc = Math.min(er.width / vw, er.height / vh);
+                    var pw = vw * sc, ph = vh * sc;
+                    var px = er.left + (er.width - pw) / 2, py = er.top + (er.height - ph) / 2;
+                    post({ type: 'ytrec', rect: [px / W, py / H, pw / W, ph / H] });
+                  }
                 }
                 if (!v.__ytrecHooked) {
                   v.__ytrecHooked = true;
                   v.addEventListener('ended', function () { post({ type: 'ytrec', state: 'ended' }); });
                 }
-                // Crop to the actual PICTURE, not the player box: a vertical video sits letterboxed inside a
-                // wider player element, so cropping the element gives big black pillars. Compute the
-                // object-fit:contain picture rect from the source aspect so the output fills the frame.
-                var er = v.getBoundingClientRect(), W = window.innerWidth, H = window.innerHeight;
-                var vw = v.videoWidth, vh = v.videoHeight;
-                if (er.width > 80 && er.height > 80 && W > 0 && H > 0 && vw > 0 && vh > 0) {
-                  var sc = Math.min(er.width / vw, er.height / vh);
-                  var pw = vw * sc, ph = vh * sc;
-                  var px = er.left + (er.width - pw) / 2, py = er.top + (er.height - ph) / 2;
-                  post({ type: 'ytrec', rect: [px / W, py / H, pw / W, ph / H] });
-                }
               }
+              // Recording must start on REAL content, never an ad: report both so the host can gate the writer.
+              var ready = !!(v && !ad && !v.paused && v.currentTime > 0 && v.readyState >= 3 && v.videoWidth > 0);
+              post({ type: 'ytrec', ad: ad, ready: ready });
               if (p) {
-                if (p.unMute) p.unMute();
-                if (p.setPlaybackQualityRange) p.setPlaybackQualityRange('hd1080', 'hd1080'); // pin 1080p
+                if (!ad && p.unMute) p.unMute();
+                if (!ad && p.setPlaybackQualityRange) p.setPlaybackQualityRange('hd1080', 'hd1080'); // pin 1080p
                 if (p.getPlayerState && p.getPlayerState() === 0) post({ type: 'ytrec', state: 'ended' }); // 0=ENDED
               }
               ensureTheater();
             } catch (e) {}
           }
-          tick(); setTimeout(tick, 1000); setTimeout(tick, 3000); setInterval(tick, 2000);
+          tick(); setTimeout(tick, 500); setTimeout(tick, 1500); setInterval(tick, 1000);
         })();
         """;
 
@@ -122,4 +146,12 @@ public static class PlayerAssets
     public static string SeekScript(double seconds) =>
         $"(function(){{var p=document.getElementById('movie_player');" +
         $"if(p&&p.seekTo)p.seekTo({seconds.ToString(System.Globalization.CultureInfo.InvariantCulture)}, true);}})();";
+
+    /// <summary>Seek to <paramref name="behindSeconds"/> behind the live edge of the DVR window (clamped to the
+    /// seekable range), for the rewind scrubber — the live edge moves, so target relative to seekableEnd.</summary>
+    public static string SeekBehindScript(double behindSeconds) =>
+        "(function(){var p=document.getElementById('movie_player');" +
+        "if(!p||!p.getProgressState||!p.seekTo)return;var st=p.getProgressState();if(!st)return;" +
+        $"var t=st.seekableEnd-({behindSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture)});" +
+        "t=Math.max(st.seekableStart,Math.min(t,st.seekableEnd));p.seekTo(t,true);})();";
 }

@@ -4,10 +4,12 @@ using YtRec.Core;
 
 namespace YtRec.App;
 
-/// <summary>Drives one screen side-recording end to end on the UI thread: spin up the off-screen player,
-/// wait out the audio-decode settle window, acquire loopback audio (Win11 per-process / Win10 system),
-/// run the <see cref="RecordingSession"/>, show the floating monitor, then finalize the segments into a
-/// clean MP4. The app's ViewModel listens to the events.</summary>
+/// <summary>Drives one screen side-record on the UI thread in two phases. <see cref="PrepareAsync"/> loads the
+/// off-screen player, auto-skips ads + waits for real content, acquires loopback audio, sizes the capture, and
+/// starts the <see cref="RecordingSession"/> in PREVIEW (live frames mirror to the floating monitor, nothing is
+/// written); <see cref="BeginRecording"/> then writes from the current player position. <see cref="StartAsync"/>
+/// does both back-to-back for record-now. Finalize muxes the segments into a clean MP4; the ViewModel listens to
+/// the events.</summary>
 public sealed class CaptureController
 {
     public event Action<string>? Status;
@@ -23,13 +25,26 @@ public sealed class CaptureController
     private string _segmentsDir = "";
     private string _audioPcmPath = "";
     private string _outputPath = "";
+    private bool _previewing;   // session started in preview; not yet writing to a file
     private bool _stopping;
 
     public bool IsRecording { get; private set; }
+    /// <summary>True while the live preview is up and the user can rewind, before recording has begun.</summary>
+    public bool IsPreviewing => _previewing && !IsRecording;
 
     public CaptureController(string ffmpegPath) => _ffmpegPath = ffmpegPath;
 
+    /// <summary>Record-now: prepare the live preview then immediately begin writing (autorecord + plain 側錄).</summary>
     public async Task StartAsync(string url, string jobDir, string title, int fps = 30, int quality = 1080)
+    {
+        await PrepareAsync(url, jobDir, title, fps, quality);
+        BeginRecording();
+    }
+
+    /// <summary>Phase 1: load the off-screen player, auto-skip ads + wait for real content, acquire audio, size
+    /// the capture, and start the session in PREVIEW. The monitor then shows live frames and the user can rewind;
+    /// call <see cref="BeginRecording"/> to start writing or <see cref="CancelPreview"/> to abort with no file.</summary>
+    public async Task PrepareAsync(string url, string jobDir, string title, int fps = 30, int quality = 1080)
     {
         var watchUrl = PlayerAssets.WatchUrlFrom(url) ?? throw new InvalidOperationException("不是有效的 YouTube 影片網址");
         _segmentsDir = SegmentReassembler.SegmentsDir(jobDir);
@@ -41,10 +56,19 @@ public sealed class CaptureController
         _player = new Win32PlayerHost();
         await _player.LoadAsync(watchUrl, Path.Combine(jobDir, ".work", "webview2"));
 
-        // Audio-decode settle window (mac §8: ~4 s after the player starts). The session-gate then anchors
-        // the writer to the first audio sample, so any frames captured during this wait are dropped cleanly.
-        Status?.Invoke("等待串流開始…");
-        await Task.Delay(4000);
+        // Wait for REAL content (never an ad) to be rolling before we record. The injected script auto-skips
+        // skippable ads and reports ContentReady only when actual content plays — so a non-Premium user's
+        // pre-roll ad is skipped/waited out and never lands in the file. Cap the wait so a detection miss can't
+        // hang forever; the session-gate still anchors the writer to the first audio sample (mac §8).
+        Status?.Invoke("等待正片開始（自動略過廣告）…");
+        var contentDeadline = DateTime.UtcNow + TimeSpan.FromSeconds(45);
+        while (!_player.ContentReady && DateTime.UtcNow < contentDeadline)
+        {
+            if (_player.AdShowing) Status?.Invoke("略過廣告中…");
+            await Task.Delay(250);
+        }
+        // Brief audio-decode settle once content is actually playing (mac §8).
+        await Task.Delay(1500);
 
         var audio = MakeAudio(_player.BrowserProcessId);
 
@@ -90,15 +114,50 @@ public sealed class CaptureController
             TargetSize = (target.Width, target.Height),
             CropFrac = _player.VideoRectFrac,
         };
-        _player.Ended += () => _ui.TryEnqueue(() => _ = StopAsync());
+        // Stream end: stop if recording, else just tear the preview down (no file).
+        _player.Ended += () => _ui.TryEnqueue(() => { if (IsRecording) _ = StopAsync(); else CancelPreview(); });
 
         await RecordingSession.RequestBorderlessAsync(); // drop the yellow WGC border before capture
-        _session.Start();
+        _session.Start();           // PREVIEW: frames mirror to the monitor, nothing is written yet
+        _previewing = true;
+        _monitor?.SetStatus("預覽中 · 倒帶到要開始錄的時間點");
+        Status?.Invoke("預覽中");
+    }
+
+    /// <summary>Phase 2: switch the live preview into recording from the current player position.</summary>
+    public void BeginRecording()
+    {
+        if (_session is null || IsRecording) return;
+        _session.BeginWriting();
+        _previewing = false;
         IsRecording = true;
         _monitor?.SetStatus(AudioCapability.IsolatedAudioSupported(OsBuild)
             ? "錄製中（只錄這個串流的聲音）"
             : "錄製中（此電腦會錄到全系統聲音）");
         Status?.Invoke("錄製中");
+    }
+
+    /// <summary>Seek the live preview to <paramref name="behindSec"/> behind the live edge (rewind scrubber).</summary>
+    public async Task SeekToBehindAsync(double behindSec)
+    {
+        if (_player is not null) await _player.SeekBehindAsync(behindSec);
+    }
+
+    /// <summary>Read the player's live position (behind-live + DVR window) for the scrubber; null if not a live
+    /// DVR stream yet.</summary>
+    public async Task<DvrProgress?> ProgressAsync()
+        => DvrScrubber.ParseProgress(_player is null ? null : await _player.ProgressStateAsync());
+
+    /// <summary>Abort a preview that never started recording — tear everything down with no file produced.</summary>
+    public void CancelPreview()
+    {
+        if (IsRecording || _stopping) return;
+        _stopping = true;
+        try { _ = _session?.StopAsync(); } catch { }   // disposes the WGC capture; nothing to reassemble
+        CloseWindows();
+        _session = null;
+        _previewing = false;
+        _stopping = false;
     }
 
     private static int OsBuild => Environment.OSVersion.Version.Build;

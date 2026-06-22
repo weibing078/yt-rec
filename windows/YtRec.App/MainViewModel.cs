@@ -24,7 +24,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _ui = DispatcherQueue.GetForCurrentThread();
         StartCommand = new RelayCommand(async () => await StartAsync(), () => CanStart);
         RecordCommand = new RelayCommand(async () => await RecordAsync(), () => CanRecord);
-        StopCommand = new RelayCommand(StopOrCancel, () => IsBusy || IsRecording);
+        StopCommand = new RelayCommand(StopOrCancel, () => IsBusy || IsRecording || IsPreviewing);
+        BeginRecordCommand = new RelayCommand(BeginRecordFromHere, () => IsPreviewing && PreviewReady);
+        CancelPreviewCommand = new RelayCommand(CancelPreview, () => IsPreviewing);
+        RewindMinuteCommand = new RelayCommand(() => Nudge(+60), () => IsPreviewing);
+        Rewind10sCommand = new RelayCommand(() => Nudge(+10), () => IsPreviewing);
+        Forward10sCommand = new RelayCommand(() => Nudge(-10), () => IsPreviewing);
+        JumpLiveCommand = new RelayCommand(JumpToLive, () => IsPreviewing);
         RefreshTools();
         DetectAudioCapability();
     }
@@ -60,6 +66,54 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>Either track is working — drives the progress ring.</summary>
     public bool IsBusyUi => IsBusy || IsRecording;
 
+    // ── Live preview / rewind scrubber (Track B phase 1) ──
+    private bool _isPreviewing;
+    public bool IsPreviewing
+    {
+        get => _isPreviewing;
+        private set
+        {
+            if (!Set(ref _isPreviewing, value)) return;
+            Raise(nameof(CanStart)); Raise(nameof(CanRecord)); Raise(nameof(ShowScrubber));
+            StartCommand.RaiseCanExecuteChanged(); RecordCommand.RaiseCanExecuteChanged();
+            StopCommand.RaiseCanExecuteChanged(); BeginRecordCommand.RaiseCanExecuteChanged();
+            CancelPreviewCommand.RaiseCanExecuteChanged(); RewindMinuteCommand.RaiseCanExecuteChanged();
+            Rewind10sCommand.RaiseCanExecuteChanged(); Forward10sCommand.RaiseCanExecuteChanged();
+            JumpLiveCommand.RaiseCanExecuteChanged();
+        }
+    }
+
+    private double _dvrWindowSec, _behindLiveSec;
+    private double? _settleTargetBehind;
+    private bool _suppressSeek;
+    private DispatcherQueueTimer? _posTimer;
+    private DispatcherQueueTimer? _seekDebounce;
+    private double _pendingBehind;
+
+    private bool _previewReady;
+    /// <summary>True once the player has loaded and the live preview is interactive (session up, frames flowing).
+    /// 「從這裡開始錄影」 stays disabled until then so an early click can't no-op.</summary>
+    public bool PreviewReady
+    {
+        get => _previewReady;
+        private set { if (Set(ref _previewReady, value)) { Raise(nameof(ShowScrubber)); BeginRecordCommand.RaiseCanExecuteChanged(); } }
+    }
+
+    /// <summary>Show the rewind scrubber only once preview is ready and the stream has a usable DVR window
+    /// (mac parity: &gt; 90 s).</summary>
+    public bool ShowScrubber => IsPreviewing && PreviewReady && DvrScrubber.CanScrub(_dvrWindowSec);
+
+    private string _previewPositionText = "";
+    public string PreviewPositionText { get => _previewPositionText; private set => Set(ref _previewPositionText, value); }
+
+    private double _scrubberValue;
+    /// <summary>Knob position 0 (oldest) .. 1 (live). A user drag seeks; the poll moves it back via the setter.</summary>
+    public double ScrubberValue
+    {
+        get => _scrubberValue;
+        set { if (Set(ref _scrubberValue, value) && !_suppressSeek) OnUserScrub(value); }
+    }
+
     /// <summary>Recording duration cap (auto-finalize at the cap). Default 6 h (mac §8).</summary>
     public DurationCap DurationCap { get; set; } = DurationCap.SixHours;
 
@@ -82,14 +136,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public string? WarningText { get => _warningText; private set { Set(ref _warningText, value); Raise(nameof(HasWarning)); } }
     public bool HasWarning => !string.IsNullOrEmpty(WarningText);
 
-    public bool CanStart => !IsBusy && !IsRecording && YtUrl.VideoId(UrlText) != null;
-    public bool CanRecord => !IsBusy && !IsRecording && YtUrl.VideoId(UrlText) != null;
+    public bool CanStart => !IsBusy && !IsRecording && !IsPreviewing && YtUrl.VideoId(UrlText) != null;
+    public bool CanRecord => !IsBusy && !IsRecording && !IsPreviewing && YtUrl.VideoId(UrlText) != null;
 
     public ObservableCollection<RecentFile> RecentFiles { get; } = new();
 
     public RelayCommand StartCommand { get; }
     public RelayCommand RecordCommand { get; }
     public RelayCommand StopCommand { get; }
+    public RelayCommand BeginRecordCommand { get; }
+    public RelayCommand CancelPreviewCommand { get; }
+    public RelayCommand RewindMinuteCommand { get; }
+    public RelayCommand Rewind10sCommand { get; }
+    public RelayCommand Forward10sCommand { get; }
+    public RelayCommand JumpLiveCommand { get; }
 
     // ── Actions ──────────────────────────────────────────────────
     public void RefreshTools()
@@ -156,6 +216,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
                           "（只錄此串流的聲音需要 Windows 11）";
     }
 
+    /// <summary>Track B starts in PREVIEW: load the player (auto-skip ads), then the user rewinds and presses
+    /// 「從這裡開始錄影」. A live stream gets the scrubber; VOD/non-live just records from the current position.</summary>
     private async Task RecordAsync()
     {
         if (!CanRecord) return;
@@ -172,18 +234,114 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         JobTitle = "螢幕側錄";
         StatusText = "準備中…";
+        IsPreviewing = true;
+
+        try
+        {
+            await _capture.PrepareAsync(UrlText, jobDir, "螢幕側錄");
+            PreviewReady = true;
+            StartPositionPolling();
+        }
+        catch (Exception e) { OnRecordFailed(e.Message); }
+    }
+
+    /// <summary>「從這裡開始錄影」: commit the current player position and start writing.</summary>
+    private void BeginRecordFromHere()
+    {
+        if (_capture is null || !IsPreviewing || !PreviewReady) return;
+        StopPositionPolling();
+        _capture.BeginRecording();
+        PreviewReady = false;
+        IsPreviewing = false;
         IsRecording = true;
         _recordStart = DateTime.Now;
         StartGuardTimer();
+    }
 
-        try { await _capture.StartAsync(UrlText, jobDir, "螢幕側錄"); }
-        catch (Exception e) { OnRecordFailed(e.Message); }
+    /// <summary>「取消監看」: tear the preview down with no file produced.</summary>
+    private void CancelPreview()
+    {
+        StopPositionPolling();
+        _capture?.CancelPreview();
+        StatusText = "已取消監看";
+        ResetRecordState();
     }
 
     private void StopOrCancel()
     {
         if (IsRecording) _ = _capture?.StopAsync();
+        else if (IsPreviewing) CancelPreview();
         else _cts?.Cancel();
+    }
+
+    // ── Rewind scrubber wiring ──
+    private void StartPositionPolling()
+    {
+        StopPositionPolling();
+        _posTimer = _ui.CreateTimer();
+        _posTimer.Interval = TimeSpan.FromSeconds(1);
+        _posTimer.Tick += async (_, _) =>
+        {
+            try
+            {
+                if (_capture is null || !IsPreviewing) { StopPositionPolling(); return; }
+                var p = await _capture.ProgressAsync();
+                if (p is null) return;
+                _dvrWindowSec = p.Value.DvrWindowSec;
+                _behindLiveSec = p.Value.BehindLiveSec;
+                if (_settleTargetBehind is double target && DvrScrubber.IsSettled(_dvrWindowSec, _behindLiveSec, target))
+                    _settleTargetBehind = null;
+                var frac = DvrScrubber.ShownFrac(_dvrWindowSec, _behindLiveSec, null, _settleTargetBehind);
+                PreviewPositionText = DvrScrubber.PositionText(DvrScrubber.ShownBehindSec(_dvrWindowSec, frac));
+                Raise(nameof(ShowScrubber));
+                _suppressSeek = true; ScrubberValue = frac; _suppressSeek = false;
+            }
+            catch { /* transient (player navigating / seeking) — the next tick retries */ }
+        };
+        _posTimer.Start();
+    }
+
+    private void StopPositionPolling() { _posTimer?.Stop(); _posTimer = null; }
+
+    private void OnUserScrub(double frac)
+    {
+        if (_capture is null || !IsPreviewing) return;
+        var behind = DvrScrubber.BehindForFrac(_dvrWindowSec, frac);
+        _settleTargetBehind = behind;                 // hold the knob here until a poll confirms the seek landed
+        _pendingBehind = behind;
+        EnsureSeekDebounce();
+        _seekDebounce!.Stop();
+        _seekDebounce.Start();                         // debounce: seek 120 ms after the last move
+    }
+
+    private void EnsureSeekDebounce()
+    {
+        if (_seekDebounce is not null) return;
+        _seekDebounce = _ui.CreateTimer();
+        _seekDebounce.Interval = TimeSpan.FromMilliseconds(120);
+        _seekDebounce.IsRepeating = false;
+        _seekDebounce.Tick += (_, _) => { if (_capture is not null) _ = _capture.SeekToBehindAsync(_pendingBehind); };
+    }
+
+    private void Nudge(double deltaBehindSec)          // +delta = further back; −delta = toward live
+    {
+        if (_capture is null || !IsPreviewing) return;
+        var cur = _settleTargetBehind ?? _behindLiveSec;
+        var behind = Math.Clamp(cur + deltaBehindSec, 0, DvrScrubber.Window(_dvrWindowSec));
+        _settleTargetBehind = behind;
+        _ = _capture.SeekToBehindAsync(behind);
+        var frac = DvrScrubber.ShownFrac(_dvrWindowSec, _behindLiveSec, null, behind);
+        PreviewPositionText = DvrScrubber.PositionText(DvrScrubber.ShownBehindSec(_dvrWindowSec, frac));
+        _suppressSeek = true; ScrubberValue = frac; _suppressSeek = false;
+    }
+
+    private void JumpToLive()
+    {
+        if (_capture is null || !IsPreviewing) return;
+        _settleTargetBehind = 0;
+        _ = _capture.SeekToBehindAsync(0);
+        _suppressSeek = true; ScrubberValue = 1; _suppressSeek = false;
+        PreviewPositionText = DvrScrubber.PositionText(0);
     }
 
     private void OnRecordFinished(string path)
@@ -203,7 +361,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
     private void ResetRecordState()
     {
+        StopPositionPolling();
         IsRecording = false;
+        IsPreviewing = false;
+        PreviewReady = false;
+        _settleTargetBehind = null;
+        _dvrWindowSec = 0; _behindLiveSec = 0;
+        Raise(nameof(ShowScrubber));
         JobTitle = null;
         _capture = null;
     }

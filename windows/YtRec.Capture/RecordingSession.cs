@@ -53,6 +53,8 @@ public sealed class RecordingSession : IDisposable
     private FileStream? _audioFile;
     private readonly StringBuilder _stderr = new();
     private volatile bool _stopped;
+    private bool _setup;            // first-frame crop/buffer setup done (needed by preview AND recording)
+    private volatile bool _writing; // false = preview only (no file); true = recording to ffmpeg
 
     public Action<byte[], int, int>? OnPreviewFrame { get; set; }
     public int PreviewEveryNthFrame { get; set; } = 5;
@@ -81,6 +83,9 @@ public sealed class RecordingSession : IDisposable
         _fps = fps;
     }
 
+    /// <summary>Begin WGC capture in PREVIEW mode: frames are read back and mirrored to
+    /// <see cref="OnPreviewFrame"/> so the user can watch and rewind, but NOTHING is written to disk until
+    /// <see cref="BeginWriting"/>. For record-now, the caller invokes Start() then BeginWriting() back-to-back.</summary>
     public void Start()
     {
         if (!GraphicsCaptureSession.IsSupported())
@@ -101,11 +106,21 @@ public sealed class RecordingSession : IDisposable
         _session = _pool.CreateCaptureSession(item);
         TryDisableBorder(_session); // no yellow capture border — it would be drawn into the whole-window frame
         _pool.FrameArrived += OnFrame;
-
-        _audioFile = new FileStream(_audioPcmPath, FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 16);
-        _audio.Start(OnAudio);
         _session.StartCapture();
+    }
 
+    /// <summary>Switch from preview to RECORDING: open the audio sink, start loopback, and let frames flow to
+    /// ffmpeg from the current player position. The session-gate then anchors the writer to the first audio
+    /// sample (mac §2), so any pre-audio frames are dropped cleanly. Idempotent.</summary>
+    public void BeginWriting()
+    {
+        lock (_lock)
+        {
+            if (_writing || _stopped) return;
+            _audioFile = new FileStream(_audioPcmPath, FileMode.Create, FileAccess.Write, FileShare.Read, 1 << 16);
+            _audio.Start(OnAudio);
+            _writing = true;
+        }
         // Safety (mac §8 audio-decision window): if no audio sample arrives in 8 s, open the gate anyway so
         // video still records (video-only survival) rather than dropping every frame forever.
         _ = Task.Run(async () =>
@@ -157,7 +172,7 @@ public sealed class RecordingSession : IDisposable
             var desc = src.Description;
             int w = (int)desc.Width, h = (int)desc.Height; // captured window size
 
-            if (_ff is null)
+            if (!_setup)
             {
                 _capW = w; _capH = h;
                 if (CropFrac is (double fx, double fy, double fw, double fh))
@@ -175,9 +190,24 @@ public sealed class RecordingSession : IDisposable
                 (_result.Width, _result.Height) = TargetSize is { } t ? (t.W, t.H) : (_inW, _inH);
                 _staging = _d3d!.CreateTexture2D(FrameReadback.StagingDesc(w, h, desc.Format));
                 _frameBuf = new byte[_inW * _inH * 4];
-                StartVideoFfmpeg(_inW, _inH, _result.Width, _result.Height);
+                _setup = true;
             }
-            if (w != _capW || h != _capH) return; // window resized mid-record — skip the odd frame
+            if (w != _capW || h != _capH) return; // window resized mid-session — skip the odd frame
+
+            FrameReadback.CopyCropToBuffer(_context!, _staging!, src, _frameBuf!, _cropX, _cropY, _inW, _inH);
+
+            // Mirror to the viewfinder in BOTH preview and recording — this is exactly what the user watches
+            // while rewinding to the start point.
+            if (OnPreviewFrame is { } preview && ++_previewCounter % PreviewEveryNthFrame == 0)
+            {
+                var copy = new byte[_frameBuf!.Length];
+                Array.Copy(_frameBuf, copy, copy.Length);
+                preview(copy, _inW, _inH);
+            }
+
+            if (!_writing) return; // preview only — nothing is written until BeginWriting()
+
+            if (_ff is null) StartVideoFfmpeg(_inW, _inH, _result.Width, _result.Height);
 
             // Session-gate (mac §2): drop video until the first audio sample has arrived, then accept all.
             // We gate on "audio started" (a boolean), NOT a cross-clock tick compare — the audio QPC and the
@@ -188,9 +218,7 @@ public sealed class RecordingSession : IDisposable
                 return;
             }
 
-            FrameReadback.CopyCropToBuffer(_context!, _staging!, src, _frameBuf!, _cropX, _cropY, _inW, _inH);
-
-            // Real-time CFR pacing (clock starts at the first post-gate frame): emit the latest frame as many
+            // Real-time CFR pacing (clock starts at the first written frame): emit the latest frame as many
             // times as wall-clock says are due so the file plays at true speed.
             _videoClock ??= Stopwatch.StartNew();
             long target = (long)(_videoClock.Elapsed.TotalSeconds * _fps);
@@ -198,13 +226,6 @@ public sealed class RecordingSession : IDisposable
             {
                 try { _videoStdin!.Write(_frameBuf!, 0, _frameBuf!.Length); _result.VideoFrames++; }
                 catch (IOException) { break; } // ffmpeg gone
-            }
-
-            if (OnPreviewFrame is { } preview && ++_previewCounter % PreviewEveryNthFrame == 0)
-            {
-                var copy = new byte[_frameBuf!.Length];
-                Array.Copy(_frameBuf, copy, copy.Length);
-                preview(copy, _inW, _inH);
             }
         }
     }
@@ -253,7 +274,7 @@ public sealed class RecordingSession : IDisposable
 
         try { _session?.Dispose(); } catch { }
         try { _pool?.Dispose(); } catch { }
-        _audio.Stop();
+        if (_writing) _audio.Stop();   // only started in BeginWriting(); a cancelled preview never started it
         if (_audioFile is not null) { try { _audioFile.Flush(); _audioFile.Dispose(); } catch { } _audioFile = null; }
 
         if (_videoStdin is not null) { try { _videoStdin.Flush(); } catch { } _videoStdin.Close(); }
@@ -263,7 +284,7 @@ public sealed class RecordingSession : IDisposable
             _result.FfmpegExitCode = _ff.ExitCode;
             if (_ff.ExitCode != 0) _result.Error = $"video ffmpeg exit {_ff.ExitCode}: {_stderr}".Trim();
         }
-        else _result.Error = "no video frames arrived";
+        else if (_writing) _result.Error = "no video frames arrived"; // (a cancelled preview legitimately has none)
 
         return _result;
     }
