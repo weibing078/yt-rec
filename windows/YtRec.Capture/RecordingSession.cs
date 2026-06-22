@@ -57,7 +57,9 @@ public sealed class RecordingSession : IDisposable
     private volatile bool _writing; // false = preview only (no file); true = recording to ffmpeg
 
     public Action<byte[], int, int>? OnPreviewFrame { get; set; }
-    public int PreviewEveryNthFrame { get; set; } = 5;
+    // Mirror every 2nd captured frame (~15 fps at 30 fps source). The preview is now downscaled before it
+    // reaches the UI (PreviewScaler), so a higher cadence is cheap and the viewfinder looks smooth, not choppy.
+    public int PreviewEveryNthFrame { get; set; } = 2;
     private int _previewCounter;
 
     /// <summary>The deterministic output size (content-driven, from <see cref="YtRec.Core.CaptureGeometry"/>).
@@ -197,12 +199,13 @@ public sealed class RecordingSession : IDisposable
             FrameReadback.CopyCropToBuffer(_context!, _staging!, src, _frameBuf!, _cropX, _cropY, _inW, _inH);
 
             // Mirror to the viewfinder in BOTH preview and recording — this is exactly what the user watches
-            // while rewinding to the start point.
+            // while rewinding to the start point. Downscale to a small box first (PreviewScaler): the full-res
+            // crop is overkill for a ~360 px monitor and pushing it whole made the on-screen preview lag. The
+            // downscale also produces the fresh detached buffer the UI thread keeps (no extra copy needed).
             if (OnPreviewFrame is { } preview && ++_previewCounter % PreviewEveryNthFrame == 0)
             {
-                var copy = new byte[_frameBuf!.Length];
-                Array.Copy(_frameBuf, copy, copy.Length);
-                preview(copy, _inW, _inH);
+                var (pw, ph) = PreviewScaler.FitBox(_inW, _inH);
+                preview(PreviewScaler.DownscaleBgra(_frameBuf!, _inW, _inH, pw, ph), pw, ph);
             }
 
             if (!_writing) return; // preview only — nothing is written until BeginWriting()

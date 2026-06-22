@@ -27,8 +27,8 @@ cat > web/latest.json <<JSON
     "minOS": "14.4"
   },
   "win": {
-    "url": "https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec-win64.zip",
-    "minOS": "10.0.20348"
+    "url": "https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec-Setup.exe",
+    "minOS": "10.0.17763"
   },
   "page": "https://ytrec.resonaframe.com/#download"
 }
@@ -48,8 +48,8 @@ cat <<NEXT
 
 Next (manual — distribution stays your call, ADR-0005):
   1. Commit the version bump:  git commit -am "release: v$ver"
-  2. Build:    mac → mac/scripts/make-dmg.sh   ·   win → CI 'windows-build' artifact
-  3. GitHub:   draft a Release tagged v$ver, attach YT-Rec.dmg (+ YT-Rec-win64.zip)
+  2. Build:    mac → mac/scripts/make-dmg.sh   ·   win → windows/installer/build-installer.ps1 (on the box)
+  3. GitHub:   draft a Release tagged v$ver, attach YT-Rec.dmg (+ YT-Rec-Setup.exe)
   4. Deploy:   publish web/ to Cloudflare Pages (latest.json must go live)
   5. Verify:   curl -s https://ytrec.resonaframe.com/latest.json | grep '"version": "$ver"'
   Installed users see the in-app "new version" notice within ~24 h.

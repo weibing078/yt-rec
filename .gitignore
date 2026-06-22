@@ -9,6 +9,8 @@ windows/**/bin/
 windows/**/obj/
 windows/**/*.user
 .vs/
+# packaged Windows installer (built by windows/installer/build-installer.ps1, uploaded to Releases)
+windows/dist/
 
 # ── Vendored binaries (fetched by tools/setup-binaries.*) ────────
 # yt-dlp / ffmpeg are downloaded locally, never committed.

@@ -1,17 +1,17 @@
 {
-  "version": "1.1.0",
+  "version": "1.1.1",
   "pubDate": "2026-06-22",
   "notes": {
-    "zh-Hant": "自動略過廣告：沒買 Premium 也不會把廣告錄進去。另加 App 內新版通知。",
-    "en": "Auto-skip ads — no-Premium recordings no longer capture ads. Plus in-app update notices."
+    "zh-Hant": "Windows 改用安裝程式：一鍵安裝、開始功能表捷徑、可從「設定 ▸ 應用程式」乾淨移除（不再是一堆散落的檔案）。預覽視窗也更順了。",
+    "en": "Windows now ships as an installer — one-click install, Start-menu shortcut, clean uninstall (no more scattered files). Smoother live preview, too."
   },
   "mac": {
     "url": "https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec.dmg",
     "minOS": "14.4"
   },
   "win": {
-    "url": "https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec-win64.zip",
-    "minOS": "10.0.20348"
+    "url": "https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec-Setup.exe",
+    "minOS": "10.0.17763"
   },
   "page": "https://ytrec.resonaframe.com/#download"
 }

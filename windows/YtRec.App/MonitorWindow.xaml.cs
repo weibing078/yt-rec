@@ -23,6 +23,14 @@ public sealed partial class MonitorWindow : Window
     private bool _shrunk;
     private RectInt32 _normalRect;
 
+    // Latest preview frame + a "render already queued" flag. Frames arrive off-thread faster than the UI can
+    // paint; we keep only the newest and schedule at most one render at a time, so the preview always shows the
+    // current moment and can never pile up a backlog (the old "lag"). Guarded by _previewLock.
+    private readonly object _previewLock = new();
+    private byte[]? _pendingBgra;
+    private int _pendingW, _pendingH;
+    private bool _renderQueued;
+
     public MonitorWindow(string title)
     {
         InitializeComponent();
@@ -55,18 +63,31 @@ public sealed partial class MonitorWindow : Window
 
     public void SetStatus(string text) => _ui.TryEnqueue(() => StatusText.Text = text);
 
-    /// <summary>Render a captured BGRA frame into the preview (called off-thread; marshals to the UI).</summary>
+    /// <summary>Hand a captured (already downscaled) BGRA frame to the preview. Called off-thread; it stores the
+    /// frame as the latest and schedules a single UI render. If a render is still pending it just swaps in the
+    /// newer frame — so the viewfinder always shows the present and never accumulates a backlog.</summary>
     public void UpdatePreview(byte[] bgra, int w, int h)
     {
+        bool needSchedule;
+        lock (_previewLock)
+        {
+            _pendingBgra = bgra; _pendingW = w; _pendingH = h;
+            needSchedule = !_renderQueued;
+            _renderQueued = true;
+        }
+        if (!needSchedule) return; // a render is already on the UI queue; it will pick up this newer frame
+
         _ui.TryEnqueue(() =>
         {
-            if (_wb is null || _wb.PixelWidth != w || _wb.PixelHeight != h)
+            byte[] buf; int bw, bh;
+            lock (_previewLock) { buf = _pendingBgra!; bw = _pendingW; bh = _pendingH; _renderQueued = false; }
+            if (_wb is null || _wb.PixelWidth != bw || _wb.PixelHeight != bh)
             {
-                _wb = new WriteableBitmap(w, h);
+                _wb = new WriteableBitmap(bw, bh);
                 Preview.Source = _wb;
             }
             using var s = _wb.PixelBuffer.AsStream();
-            s.Write(bgra, 0, Math.Min(bgra.Length, (int)s.Length));
+            s.Write(buf, 0, Math.Min(buf.Length, (int)s.Length));
             _wb.Invalidate();
         });
     }
