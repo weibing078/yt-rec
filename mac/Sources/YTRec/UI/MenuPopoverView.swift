@@ -25,6 +25,9 @@ struct MenuPopoverView: View {
             if let msg = app.globalMessage {
                 warningBanner(msg)
             }
+            if let note = app.updateNotice {
+                updateBanner(note)
+            }
             // 任務進行中就收起網址列：避免那顆已停用的「進行中」藍鈕跟真正的主操作搶注意力。
             if app.job?.isActive != true { inputRow }
             if !app.isBusy { sectionRow }
@@ -79,6 +82,19 @@ struct MenuPopoverView: View {
         }
         .padding(8)
         .background(.lcWarning.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    /// 有新版時的提示橫幅（app 內更新檢查）。只通知；按「下載更新」開下載頁，不自動安裝。
+    private func updateBanner(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: "arrow.down.circle.fill").foregroundStyle(.lcSignal)
+            Text(text).font(.caption).fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            Button("下載更新") { if let u = app.updateURL { NSWorkspace.shared.open(u) } }
+                .font(.caption)
+        }
+        .padding(8)
+        .background(.lcSignal.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var inputRow: some View {

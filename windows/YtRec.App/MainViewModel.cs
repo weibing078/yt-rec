@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Net.Http;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using Microsoft.UI.Dispatching;
@@ -33,6 +35,30 @@ public sealed class MainViewModel : INotifyPropertyChanged
         JumpLiveCommand = new RelayCommand(JumpToLive, () => IsPreviewing);
         RefreshTools();
         DetectAudioCapability();
+        _ = CheckForUpdateAsync();
+    }
+
+    /// <summary>In-app update check (once per ~24 h, fail-silent): fetch latest.json, compare to this build's
+    /// version, and surface a "下載更新" notice if newer. Never auto-installs (unsigned). See shared/spec.</summary>
+    private async Task CheckForUpdateAsync()
+    {
+        try
+        {
+            var stamp = Path.Combine(Path.GetTempPath(), "ytrec-updatecheck");
+            try { if (File.Exists(stamp) && DateTime.UtcNow - File.GetLastWriteTimeUtc(stamp) < TimeSpan.FromHours(24)) return; } catch { }
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
+            var json = await http.GetStringAsync("https://ytrec.resonaframe.com/latest.json");
+            try { File.WriteAllText(stamp, DateTime.UtcNow.ToString("o")); } catch { }
+            var current = Assembly.GetExecutingAssembly().GetName().Version?.ToString();
+            var m = AppUpdate.ParseManifest(json, "win");
+            if (m is null || !AppUpdate.IsNewer(current, m.Version)) return;
+            _ui.TryEnqueue(() =>
+            {
+                UpdateUrl = m.Url ?? m.Page;
+                UpdateNotice = $"有新版 v{m.Version}" + (string.IsNullOrEmpty(m.Notes) ? "" : $" · {m.Notes}");
+            });
+        }
+        catch { /* no network / manifest not live yet → silent */ }
     }
 
     // ── Bound state ──────────────────────────────────────────────
@@ -124,6 +150,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         private set { Set(ref _audioNotice, value); Raise(nameof(HasAudioNotice)); }
     }
     public bool HasAudioNotice => !string.IsNullOrEmpty(AudioNotice);
+
+    private string? _updateNotice;
+    /// <summary>"有新版 vX · …" when a newer release is published; drives the update InfoBar.</summary>
+    public string? UpdateNotice { get => _updateNotice; private set { Set(ref _updateNotice, value); Raise(nameof(HasUpdate)); } }
+    public bool HasUpdate => !string.IsNullOrEmpty(UpdateNotice);
+    public string? UpdateUrl { get; private set; }
 
     private string _statusText = "";
     public string StatusText { get => _statusText; private set => Set(ref _statusText, value); }

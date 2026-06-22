@@ -1,0 +1,17 @@
+{
+  "version": "1.0.0",
+  "pubDate": "2026-06-22",
+  "notes": {
+    "zh-Hant": "首發版本。",
+    "en": "Initial release."
+  },
+  "mac": {
+    "url": "https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec.dmg",
+    "minOS": "14.4"
+  },
+  "win": {
+    "url": "https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec-win64.zip",
+    "minOS": "10.0.20348"
+  },
+  "page": "https://ytrec.resonaframe.com/#download"
+}

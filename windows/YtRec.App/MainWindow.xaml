@@ -39,6 +39,14 @@
                 <muxc:InfoBar Severity="Informational" IsOpen="{x:Bind Vm.HasAudioNotice, Mode=OneWay}"
                               IsClosable="True" Message="{x:Bind Vm.AudioNotice, Mode=OneWay}"/>
 
+                <!-- In-app update notice (notify only — never auto-installs) -->
+                <muxc:InfoBar Severity="Success" IsOpen="{x:Bind Vm.HasUpdate, Mode=OneWay}"
+                              IsClosable="True" Title="更新" Message="{x:Bind Vm.UpdateNotice, Mode=OneWay}">
+                    <muxc:InfoBar.ActionButton>
+                        <Button Content="下載更新" Click="OnDownloadUpdate"/>
+                    </muxc:InfoBar.ActionButton>
+                </muxc:InfoBar>
+
                 <!-- URL + paste -->
                 <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
                     <TextBox Grid.Column="0" x:Uid="UrlTextBox"

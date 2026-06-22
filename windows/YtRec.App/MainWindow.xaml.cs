@@ -135,6 +135,12 @@ public sealed partial class MainWindow : Window
         Process.Start(new ProcessStartInfo("explorer.exe", $"\"{logs}\"") { UseShellExecute = true });
     }
 
+    private void OnDownloadUpdate(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrEmpty(Vm.UpdateUrl))
+            try { Process.Start(new ProcessStartInfo(Vm.UpdateUrl) { UseShellExecute = true }); } catch { }
+    }
+
     private async Task Info(string title, string message) =>
         await new ContentDialog
         {

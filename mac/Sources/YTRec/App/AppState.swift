@@ -18,6 +18,8 @@ final class AppState: ObservableObject {
     @Published var history: [CompletedFile] = []
     @Published var clipperSource: ClipperSource = .none
     @Published var globalMessage: String?       // 權限/環境問題提示
+    @Published var updateNotice: String?        // 有新版時的提示（app 內更新檢查）
+    var updateURL: URL?                          // 「下載更新」要開的連結
 
     private var trackAEngine: YtDlpEngine?
     private var recorder: RecorderEngine?
@@ -47,6 +49,29 @@ final class AppState: ObservableObject {
         loadHistory()
         checkEnvironment()
         Task { await recoverOrphanRecordings() }
+        Task { await checkForUpdate() }
+    }
+
+    /// App 內更新檢查（每天最多一次、無網路時靜默）：抓 latest.json、比版本，有新版就設 `updateNotice`。
+    /// 不自動下載/安裝（未簽章）—— 只通知，使用者自己按「下載更新」（shared/spec「App update check」）。
+    @MainActor
+    func checkForUpdate() async {
+        let key = "lastUpdateCheck"
+        let now = Date()
+        if let last = UserDefaults.standard.object(forKey: key) as? Date, now.timeIntervalSince(last) < 86400 { return }
+        guard let url = URL(string: "https://ytrec.resonaframe.com/latest.json") else { return }
+        do {
+            var req = URLRequest(url: url)
+            req.timeoutInterval = 8
+            req.cachePolicy = .reloadIgnoringLocalCacheData
+            let (data, _) = try await URLSession.shared.data(for: req)
+            UserDefaults.standard.set(now, forKey: key)   // 成功才記時間；失敗下次啟動再試
+            let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+            guard let m = AppUpdate.parseManifest(String(data: data, encoding: .utf8), platform: "mac"),
+                  AppUpdate.isNewer(current: current, latest: m.version) else { return }
+            updateNotice = "有新版 v\(m.version)" + ((m.notes?.isEmpty == false) ? " · \(m.notes!)" : "")
+            updateURL = URL(string: m.url ?? m.page)
+        } catch { /* 無網路 / 清單還沒上線：靜默 */ }
     }
 
     // MARK: - 環境

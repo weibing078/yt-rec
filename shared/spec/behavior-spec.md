@@ -111,6 +111,21 @@ Side-record only — the download (yt-dlp) path is ad-free by construction.
   videoWidth > 0`). The writer waits for `contentReady` (cap **45 s**, then proceed so a
   detection miss can't hang), then the normal audio-settle + session gate apply.
 
+## App update check (notify, never auto-install)
+A hosted manifest `latest.json` (on the landing page) is the single source of truth for the
+newest release; pure logic is `AppUpdate` (L1-tested), the app does the fetch + the notice.
+- Manifest fields: `version` (dotted-numeric), `pubDate`, `notes` (`{lang: text}` or a string),
+  `mac`/`win` `{ url, minOS }`, `page`.
+- `IsNewer(current, latest)`: dotted-numeric (so `1.10` > `1.9`), missing parts = 0, a leading
+  `v` and any `-pre`/`+meta` suffix ignored; **unparseable → never newer** (a bad manifest or
+  unknown latest can't nag; an unknown *current* errs toward offering).
+- On launch (throttled to once per ~24 h, **fail-silent** with no network), fetch the manifest,
+  compare to the app's own version; if newer show a **non-blocking** notice
+  (`有新版 vX · <notes> · 下載更新`) that opens the download URL/`page`.
+- **Never auto-download or auto-install** — the app is unsigned. Download URLs are GitHub
+  `releases/latest/download/<asset>` (evergreen → always newest); a release only bumps
+  `version`/`pubDate`/`notes` in the manifest (`tools/release.sh`).
+
 ## Session gate (the corruption-prevention rule)
 - The **first audio sample** sets the session start (PTS baseline).
 - Audio: if `audioDisabled` → drop; else if not started → start session; else
