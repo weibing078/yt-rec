@@ -53,7 +53,7 @@
       "datePublished": "2026-06-22",
       "inLanguage": "zh-Hant",
       "description": "YT Rec（YT快錄）是一個 macOS／Windows 桌面工具，只錄下單一 YouTube 直播視窗的畫面與聲音，讓你邊錄邊用電腦工作，而且不會錄到其他 App 的聲音。直播或一般 YouTube 影片都能錄，特別適合搶錄超長或進行中的直播。",
-      "screenshot": "https://ytrec.resonaframe.com/app-both.png",
+      "screenshot": "https://ytrec.resonaframe.com/app-macos.png",
       "image": "https://ytrec.resonaframe.com/og.png",
       "license": "https://www.apache.org/licenses/LICENSE-2.0",
       "isAccessibleForFree": true,
@@ -303,6 +303,31 @@
   .foot-links a{color:var(--dim);padding:5px 0;display:inline-block}
   .trademark{width:100%;font-size:12.5px;color:var(--dim-2);border-top:1px solid var(--line);padding-top:20px;margin-top:6px}
 
+  /* Platforms (tabbed showcase) */
+  .sec-sub{color:var(--dim);font-size:16px;max-width:560px;margin:14px auto 0;line-height:1.6}
+  .plat{margin-top:40px;max-width:1000px;margin-left:auto;margin-right:auto}
+  .plat-tabs{display:flex;gap:6px;width:fit-content;margin:0 auto 36px;padding:5px;
+    background:var(--bg-1);border:1px solid var(--line);border-radius:13px}
+  .plat-tab{display:inline-flex;align-items:center;gap:9px;padding:10px 22px;border:0;border-radius:9px;
+    background:transparent;color:var(--dim);font-family:inherit;font-weight:700;font-size:15px;cursor:pointer;transition:.18s ease}
+  .plat-tab svg{width:17px;height:17px}
+  .plat-tab:hover{color:var(--text)}
+  .plat-tab.is-active{background:var(--bg-2);color:#fff;box-shadow:0 2px 10px -5px rgba(0,0,0,.6)}
+  .plat-panel{display:none;grid-template-columns:1.02fr .98fr;gap:48px;align-items:center}
+  .plat-panel.is-active{display:grid}
+  .plat-shot{min-height:340px;display:flex;align-items:center;justify-content:center}
+  .plat-shot img{width:100%;max-width:460px;height:auto;border-radius:12px;filter:drop-shadow(0 24px 52px rgba(0,0,0,.55))}
+  .plat-req{display:inline-block;font-size:13px;font-weight:800;letter-spacing:.04em;color:var(--red-bright);text-transform:uppercase;margin-bottom:10px}
+  .plat-info h3{font-size:24px;margin-bottom:12px}
+  .plat-info > p{color:var(--dim);line-height:1.65;margin-bottom:20px}
+  .plat-info > p b{color:var(--text)}
+  .plat-steps{list-style:none;counter-reset:s;margin:0 0 26px;padding:0;display:grid;gap:13px}
+  .plat-steps li{position:relative;padding-left:40px;color:var(--text);line-height:1.5}
+  .plat-steps li b{color:#fff}
+  .plat-steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:-2px;
+    width:28px;height:28px;border-radius:50%;background:var(--bg-2);border:1px solid var(--line-2);
+    color:var(--red-bright);font-size:13px;font-weight:800;text-align:center;line-height:27px}
+
   /* Pin the Ko-fi floating button bottom-left, even after a language redraw */
   .floatingchat-container-wrap{position:fixed!important;left:18px!important;bottom:18px!important;top:auto!important;right:auto!important;z-index:1000!important}
 
@@ -312,7 +337,8 @@
     .hero{padding:48px 0 44px}
     .hero .wrap,.os .wrap{grid-template-columns:1fr;gap:44px}
     .mock{max-width:410px;margin-top:6px}
-    .saver-grid,.steps,.grid3,.dl-grid{grid-template-columns:1fr}
+    .saver-grid,.steps,.grid3,.dl-grid,.plat-panel.is-active{grid-template-columns:1fr}
+    .plat-shot{min-height:auto;order:-1}
     .saver{padding:0 0 60px}
     .nav-links,.nav-dl{display:none}
     .hamburger{display:block}
@@ -384,7 +410,7 @@
     </div>
 
     <div class="mock">
-      <img class="mock-shot" src="app-both.png" width="480" height="571" alt="YT Rec 同時支援 Windows 與 macOS：上方是 Windows 版主畫面、下方是 macOS 版，貼上 YouTube 直播或影片網址即可單獨錄下那個視窗。">
+      <img class="mock-shot" src="app-macos.png" width="460" height="199" alt="YT Rec 主畫面：貼上 YouTube 直播或影片網址，按一下即可單獨錄下那個視窗。Mac 與 Windows 都支援。">
       <div class="mock-callout" data-i18n="hero.callout">其他視窗疊在上面，<b>也不會被錄進去</b>。</div>
     </div>
   </div>
@@ -468,6 +494,51 @@
       <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg></div><h3 data-i18n="feat.4.t">直播、影片都能錄</h3><p data-i18n="feat.4.d">貼進行中的直播就自動螢幕側錄；貼已結束的一般影片就直接抓原始檔，更快、畫質更好。它幫你判斷，你不用選。</p></div>
       <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div><h3 data-i18n="feat.5.t">抗崩潰長錄</h3><p data-i18n="feat.5.d">fMP4 分段切片＋磁碟與時長保護，6–8 小時、24hr 台也錄得住，意外當機也保得住已錄段落。</p></div>
       <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" fill="currentColor" stroke="none"/></svg></div><h3 data-i18n="feat.6.t">各平台原生</h3><p data-i18n="feat.6.d">macOS 用 Swift／SwiftUI，Windows 用 C#／.NET——各自原生實作，不是套殼，效能與穩定度到位。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- PLATFORMS -->
+<section id="platforms">
+  <div class="wrap">
+    <div class="center sec-head">
+      <span class="eyebrow" data-i18n="plat.eyebrow">兩個平台</span>
+      <h2 data-i18n="plat.title">Mac、Windows 都是原生 App。</h2>
+      <p class="sec-sub" data-i18n="plat.sub">同一套操作：貼上網址 → 開始側錄 → 自動存檔。挑你的系統看實際畫面。</p>
+    </div>
+    <div class="plat">
+      <div class="plat-tabs" role="tablist">
+        <button class="plat-tab is-active" type="button" data-plat="mac" role="tab" aria-selected="true"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.5 2.6c.1 1-.3 2-1 2.8-.7.8-1.7 1.4-2.7 1.3-.1-1 .4-2 1-2.7.7-.8 1.8-1.4 2.7-1.4zM19 17.3c-.5 1.1-.7 1.6-1.3 2.6-.9 1.4-2.1 3.1-3.7 3.1-1.4 0-1.7-.9-3.6-.9s-2.3.9-3.6.9c-1.6 0-2.8-1.6-3.6-3-2.4-3.7-2.6-8.1-1.2-10.4 1-1.7 2.6-2.7 4.1-2.7 1.5 0 2.5 1 3.7 1 1.2 0 1.9-1 3.7-1 1.3 0 2.7.7 3.7 2-3.3 1.8-2.7 6.4 1.4 8.4z"/></svg>macOS</button>
+        <button class="plat-tab" type="button" data-plat="win" role="tab" aria-selected="false"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.6 10.3 4.6v6.8H3zM10.3 12.6v6.8L3 18.4v-5.8zM11.4 4.4 21 3v8.4h-9.6zM21 12.6V21l-9.6-1.4v-7z"/></svg>Windows</button>
+      </div>
+      <div class="plat-panel is-active" data-panel="mac">
+        <div class="plat-shot"><img src="app-macos.png" width="460" height="199" alt="YT Rec 的 macOS 主畫面" loading="lazy"></div>
+        <div class="plat-info">
+          <span class="plat-req" data-i18n="plat.mac.req">macOS 14.4+ · Apple Silicon</span>
+          <h3 data-i18n="plat.mac.t">在 Mac 上</h3>
+          <p data-i18n="plat.mac.install">雙擊 <b>.dmg</b> 安裝——已簽章＋公證，不會被 Gatekeeper 擋。</p>
+          <ol class="plat-steps">
+            <li data-i18n="plat.mac.s1">貼上 YouTube 直播／影片網址</li>
+            <li data-i18n="plat.mac.s2">按「<b>開始監看</b>」，邊錄邊用電腦</li>
+            <li data-i18n="plat.mac.s3">錄完自動存成一個完整檔案</li>
+          </ol>
+          <a class="btn btn-primary" href="https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec.dmg"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.5 2.6c.1 1-.3 2-1 2.8-.7.8-1.7 1.4-2.7 1.3-.1-1 .4-2 1-2.7.7-.8 1.8-1.4 2.7-1.4zM19 17.3c-.5 1.1-.7 1.6-1.3 2.6-.9 1.4-2.1 3.1-3.7 3.1-1.4 0-1.7-.9-3.6-.9s-2.3.9-3.6.9c-1.6 0-2.8-1.6-3.6-3-2.4-3.7-2.6-8.1-1.2-10.4 1-1.7 2.6-2.7 4.1-2.7 1.5 0 2.5 1 3.7 1 1.2 0 1.9-1 3.7-1 1.3 0 2.7.7 3.7 2-3.3 1.8-2.7 6.4 1.4 8.4z"/></svg><span data-i18n="plat.mac.dl">下載 Mac（.dmg）</span></a>
+        </div>
+      </div>
+      <div class="plat-panel" data-panel="win">
+        <div class="plat-shot"><img src="app-windows.png" width="474" height="333" alt="YT Rec 的 Windows 主畫面" loading="lazy"></div>
+        <div class="plat-info">
+          <span class="plat-req" data-i18n="plat.win.req">Windows 10／11</span>
+          <h3 data-i18n="plat.win.t">在 Windows 上</h3>
+          <p data-i18n="plat.win.install">下載<b>安裝程式</b>一鍵安裝（開始功能表＋桌面捷徑、可乾淨移除）。第一次開啟在 SmartScreen 點「更多資訊 → 仍要執行」。</p>
+          <ol class="plat-steps">
+            <li data-i18n="plat.win.s1">貼上 YouTube 直播／影片網址</li>
+            <li data-i18n="plat.win.s2">按「<b>側錄</b>」，邊錄邊用電腦</li>
+            <li data-i18n="plat.win.s3">錄完自動存成一個完整檔案</li>
+          </ol>
+          <a class="btn btn-primary" href="https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec-Setup.exe"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.6 10.3 4.6v6.8H3zM10.3 12.6v6.8L3 18.4v-5.8zM11.4 4.4 21 3v8.4h-9.6zM21 12.6V21l-9.6-1.4v-7z"/></svg><span data-i18n="plat.win.dl">下載 Windows（安裝程式）</span></a>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -623,6 +694,11 @@
     "dl.mac.btn":"Download .dmg","dl.mac.size":"~65 MB · from GitHub Releases",
     "dl.win.tag":"Available","dl.win.req1":"Windows 10/11","dl.win.req2":"One-click install — shortcut & clean uninstall","dl.win.req3":"First run: SmartScreen → More info → Run anyway",
     "dl.win.btn":"Download installer","dl.win.size":"~100 MB · from GitHub Releases",
+    "plat.eyebrow":"Two platforms","plat.title":"Native on Mac and Windows.","plat.sub":"Same flow on both: paste a URL → start recording → auto-saved file. Pick your OS to see the real UI.",
+    "plat.mac.req":"macOS 14.4+ · Apple Silicon","plat.mac.t":"On Mac","plat.mac.install":"Double-click the <b>.dmg</b> to install — signed + notarized, not blocked by Gatekeeper.",
+    "plat.mac.s1":"Paste a YouTube live / video URL","plat.mac.s2":"Hit <b>Start monitoring</b> and keep working","plat.mac.s3":"Get one complete file when it's done","plat.mac.dl":"Download Mac (.dmg)",
+    "plat.win.req":"Windows 10/11","plat.win.t":"On Windows","plat.win.install":"Run the <b>installer</b> — one click (Start-menu + desktop shortcut, clean uninstall). First launch: SmartScreen → More info → Run anyway.",
+    "plat.win.s1":"Paste a YouTube live / video URL","plat.win.s2":"Hit <b>Record</b> and keep working","plat.win.s3":"Get one complete file when it's done","plat.win.dl":"Download Windows (installer)",
 
     "os.eyebrow":"Open source","os.title":"Fully open. Visible, trustworthy.",
     "os.body":"YT Rec is released under Apache-2.0. The two platforms are built natively, kept in sync by one shared behavior spec and acceptance tests — the code is public, open to review, issues and contributions.",
@@ -661,6 +737,17 @@
   }
   document.querySelectorAll('.lang-toggle button').forEach(b=> b.addEventListener('click', ()=> setLang(b.getAttribute('data-lang'))));
   try{ if(localStorage.getItem('ytrec-lang') === 'en') setLang('en'); }catch(e){}
+
+  // Platform showcase tabs (macOS ⇄ Windows)
+  document.querySelectorAll('.plat-tab').forEach(tab=>{
+    tab.addEventListener('click',()=>{
+      const p = tab.getAttribute('data-plat');
+      document.querySelectorAll('.plat-tab').forEach(t=>{
+        const on = t === tab; t.classList.toggle('is-active', on); t.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      document.querySelectorAll('.plat-panel').forEach(pl=> pl.classList.toggle('is-active', pl.getAttribute('data-panel') === p));
+    });
+  });
 
   const burger = document.getElementById('hamburger');
   const links = document.getElementById('navLinks');
