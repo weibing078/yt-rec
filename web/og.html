@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1200px;height:630px;overflow:hidden}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",Helvetica,Arial,sans-serif;
+    color:#f4f5f7;
+    background:
+      radial-gradient(720px 400px at 88% -12%, rgba(255,46,69,.24), transparent 60%),
+      radial-gradient(520px 420px at 2% 112%, rgba(255,46,69,.12), transparent 60%),
+      #0d0e12;
+  }
+  .card{position:relative;width:1200px;height:630px;display:flex;align-items:center;padding:0 72px}
+  .card::before{content:"";position:absolute;inset:0;
+    background-image:radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px);background-size:30px 30px;
+    -webkit-mask-image:radial-gradient(820px 460px at 78% 0%, #000, transparent 72%)}
+  .left{position:relative;width:560px;z-index:2}
+  .brand{display:flex;align-items:center;gap:14px;margin-bottom:30px}
+  .brand .mark{width:48px;height:48px}
+  .brand .name{font-size:27px;font-weight:800;letter-spacing:-.02em}
+  .badge{display:inline-flex;align-items:center;gap:10px;font-size:16px;font-weight:600;color:#9aa1ad;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);padding:8px 17px;border-radius:999px;margin-bottom:26px}
+  .badge .dot{width:8px;height:8px;border-radius:50%;background:#FF2E45;box-shadow:0 0 0 4px rgba(255,46,69,.22)}
+  h1{font-size:56px;line-height:1.14;font-weight:800;letter-spacing:-.02em;margin-bottom:24px}
+  h1 .hl{color:#FF3D52}
+  .sub{font-size:20px;line-height:1.5;color:#9aa1ad;max-width:540px;margin-bottom:34px}
+  .url{display:inline-flex;align-items:center;gap:11px;font-size:20px;font-weight:700;color:#fff}
+  .url svg{width:20px;height:20px;color:#FF2E45}
+  .right{position:absolute;right:66px;top:50%;transform:translateY(-50%);z-index:2}
+  .shot{width:452px;height:auto;display:block;filter:drop-shadow(0 30px 62px rgba(0,0,0,.62))}
+  .callout{position:absolute;right:-6px;bottom:-30px;background:#fff;color:#15171C;font-size:15px;font-weight:700;
+    padding:12px 16px;border-radius:13px;box-shadow:0 24px 60px -20px rgba(0,0,0,.7);max-width:250px;line-height:1.45}
+  .callout b{color:#FF2E45}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="left">
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FF3D52"/><stop offset="1" stop-color="#D5002A"/></linearGradient></defs><rect x="100" y="100" width="824" height="824" rx="185" fill="url(#g)"/><g fill="none" stroke="#fff" stroke-width="37" stroke-linecap="round" stroke-linejoin="round"><path d="M330.7 429.6 L330.7 363.7 Q330.7 330.7 363.7 330.7 L429.6 330.7"/><path d="M594.4 330.7 L660.3 330.7 Q693.3 330.7 693.3 363.7 L693.3 429.6"/><path d="M693.3 594.4 L693.3 660.3 Q693.3 693.3 660.3 693.3 L594.4 693.3"/><path d="M429.6 693.3 L363.7 693.3 Q330.7 693.3 330.7 660.3 L330.7 594.4"/></g><path d="M462.6 437.8 L462.6 586.2 L610.9 512 Z" fill="#fff" stroke="#fff" stroke-width="41" stroke-linejoin="round" stroke-linecap="round"/></svg>
+        <span class="name">YT Rec</span>
+      </div>
+      <span class="badge"><span class="dot"></span>開源 · 免費 · macOS 已上線</span>
+      <h1>搶錄直播，<br><span class="hl">不賠上你的時間</span>。</h1>
+      <p class="sub">只錄那一個 YouTube 直播視窗的畫面與聲音，邊錄邊工作，不會錄到電腦其他聲音。</p>
+      <span class="url"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20a15 15 0 0 1 0-20z"/></svg>ytrec.resonaframe.com</span>
+    </div>
+    <div class="right">
+      <img class="shot" src="app-macos.png" alt="">
+      <div class="callout">其他視窗疊在上面，<b>也不會被錄進去</b>。</div>
+    </div>
+  </div>
+</body>
+</html>
