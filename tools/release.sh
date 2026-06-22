@@ -36,8 +36,9 @@ JSON
 echo "✓ web/latest.json → $ver ($date_iso)"
 
 # 2) App version strings — so the running app knows its own version for the IsNewer compare.
-sed -i '' -E "s#(<key>CFBundleShortVersionString</key>[[:space:]]*<string>)[^<]*#\1$ver#" mac/scripts/Info.plist
-echo "✓ mac Info.plist CFBundleShortVersionString → $ver"
+# PlistBuddy, not sed — the key/string sit on separate lines, which a line-based sed can't span.
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $ver" mac/scripts/Info.plist
+echo "✓ mac Info.plist CFBundleShortVersionString → $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' mac/scripts/Info.plist)"
 if grep -q '<Version>' windows/YtRec.App/YtRec.App.csproj; then
   sed -i '' -E "s#<Version>[^<]*</Version>#<Version>$ver</Version>#" windows/YtRec.App/YtRec.App.csproj
   echo "✓ windows YtRec.App.csproj <Version> → $ver"

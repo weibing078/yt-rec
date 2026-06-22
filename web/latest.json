@@ -1,9 +1,9 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "pubDate": "2026-06-22",
   "notes": {
-    "zh-Hant": "首發版本。",
-    "en": "Initial release."
+    "zh-Hant": "直播倒帶預覽（從這裡開始錄影）、自動略過廣告、啟動不再閃 YouTube 介面",
+    "en": "Live rewind preview (record from here), auto-skip ads, no-flash startup"
   },
   "mac": {
     "url": "https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec.dmg",
