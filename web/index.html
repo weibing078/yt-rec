@@ -46,7 +46,7 @@
       "name": "YT Rec",
       "alternateName": "YT快錄",
       "applicationCategory": "MultimediaApplication",
-      "operatingSystem": "macOS 14.4 or later (Apple Silicon)",
+      "operatingSystem": "macOS 14.4+ (Apple Silicon); Windows 10/11",
       "url": "https://ytrec.resonaframe.com/",
       "downloadUrl": "https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec.dmg",
       "softwareVersion": "1.1.0",
@@ -84,7 +84,7 @@
         { "@type": "Question", "name": "用 YT Rec 錄 YouTube 直播合法嗎？", "acceptedAnswer": { "@type": "Answer", "text": "YT Rec 只是一個錄製工具。請只錄製你有權錄製、或在合理使用範圍內的內容；是否遵守 YouTube 服務條款與當地法律，由使用者自行負責。" } },
         { "@type": "Question", "name": "錄製時會錄到我電腦其他 App 的聲音嗎？", "acceptedAnswer": { "@type": "Answer", "text": "不會。它只收那一個直播視窗 App 的聲音，電腦其他 App 的聲音、通知音都不會混進去，已用實機測試驗證零殘留。" } },
         { "@type": "Question", "name": "YT Rec 要錢嗎？", "acceptedAnswer": { "@type": "Answer", "text": "完全免費、開源（Apache-2.0 授權）。" } },
-        { "@type": "Question", "name": "YT Rec 有 Windows 版嗎？", "acceptedAnswer": { "@type": "Answer", "text": "目前 macOS 版已上線，Windows 版開發中。核心邏輯已移植到跨平台的 .NET，原生擷取與介面正在進行，釋出時會在 GitHub 發布 Release。" } }
+        { "@type": "Question", "name": "YT Rec 有 Windows 版嗎？", "acceptedAnswer": { "@type": "Answer", "text": "macOS 與 Windows 版都已上線。Windows 為免安裝版（解壓即用），因尚未程式碼簽章，第一次開啟需在 SmartScreen 點「更多資訊 → 仍要執行」。" } }
       ]
     }
   ]
@@ -363,20 +363,20 @@
 <section class="hero">
   <div class="wrap">
     <div>
-      <span class="hero-badge"><span class="dot"></span><span data-i18n="hero.badge">開源 · 免費 · macOS 已上線</span></span>
+      <span class="hero-badge"><span class="dot"></span><span data-i18n="hero.badge">開源 · 免費 · Mac + Windows 已上線</span></span>
       <h1 data-i18n="hero.title">搶錄直播，<span class="hl">不賠上你的時間</span>。</h1>
       <p class="sub" data-i18n="hero.sub">六小時的直播不用整段下載、也不用佔住螢幕乾等。開錄後電腦照常工作，只錄那一個直播視窗，連聲音都不會混到別的 App。直播或一般 YouTube 影片都能錄。</p>
       <div class="hero-cta">
         <a class="btn btn-primary" href="#download">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.5 2.6c.1 1-.3 2-1 2.8-.7.8-1.7 1.4-2.7 1.3-.1-1 .4-2 1-2.7.7-.8 1.8-1.4 2.7-1.4zM19 17.3c-.5 1.1-.7 1.6-1.3 2.6-.9 1.4-2.1 3.1-3.7 3.1-1.4 0-1.7-.9-3.6-.9s-2.3.9-3.6.9c-1.6 0-2.8-1.6-3.6-3-2.4-3.7-2.6-8.1-1.2-10.4 1-1.7 2.6-2.7 4.1-2.7 1.5 0 2.5 1 3.7 1 1.2 0 1.9-1 3.7-1 1.3 0 2.7.7 3.7 2-3.3 1.8-2.7 6.4 1.4 8.4z"/></svg>
-          <span data-i18n="hero.ctaMac">下載 Mac 版</span>
+          <span data-i18n="hero.ctaMac">免費下載</span>
         </a>
         <a class="btn btn-ghost" href="https://github.com/weibing078/yt-rec" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 1.5A10.5 10.5 0 0 0 8.7 22c.5.1.7-.2.7-.5v-2c-2.9.6-3.5-1.3-3.5-1.3-.5-1.2-1.2-1.5-1.2-1.5-.9-.6.1-.6.1-.6 1 .1 1.6 1 1.6 1 .9 1.6 2.4 1.1 3 .8.1-.6.4-1.1.6-1.4-2.3-.3-4.7-1.1-4.7-5a4 4 0 0 1 1-2.7c-.1-.3-.5-1.4.1-2.8 0 0 .9-.3 2.8 1a9.4 9.4 0 0 1 5 0c1.9-1.3 2.8-1 2.8-1 .6 1.4.2 2.5.1 2.8a4 4 0 0 1 1 2.7c0 3.9-2.3 4.7-4.6 5 .4.3.7.9.7 1.9v2.7c0 .3.2.6.7.5A10.5 10.5 0 0 0 12 1.5z"/></svg>
           <span data-i18n="hero.github">在 GitHub 上看</span>
         </a>
       </div>
-      <p class="hero-note" data-i18n="hero.note">macOS 14.4+ · Apple Silicon　|　Windows 版開發中</p>
+      <p class="hero-note" data-i18n="hero.note">macOS 14.4+ · Apple Silicon　|　Windows 10/11（免安裝）</p>
     </div>
 
     <div class="mock">
@@ -489,18 +489,18 @@
         </a>
         <div class="dl-size" data-i18n="dl.mac.size">約 65 MB · 從 GitHub Releases 下載</div>
       </div>
-      <div class="dl-card">
+      <div class="dl-card ready">
         <div class="dl-os">
           <svg viewBox="0 0 24 24" fill="#8A8F98" aria-hidden="true"><path d="M3 5.6 10.3 4.6v6.8H3zM10.3 12.6v6.8L3 18.4v-5.8zM11.4 4.4 21 3v8.4h-9.6zM21 12.6V21l-9.6-1.4v-7z"/></svg>
           <h3>Windows</h3>
-          <span class="dl-tag soon" data-i18n="dl.win.tag">開發中</span>
+          <span class="dl-tag ok" data-i18n="dl.win.tag">可下載</span>
         </div>
-        <p class="dl-req"><b data-i18n="dl.win.req1">Windows 11</b> <span data-i18n="dl.win.req2">（10 盡力支援）</span> · <span data-i18n="dl.win.req3">C# / .NET 8 + WinUI 3</span></p>
-        <a class="btn btn-outline" href="https://github.com/weibing078/yt-rec" target="_blank" rel="noopener">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
-          <span data-i18n="dl.win.btn">到 GitHub 追蹤進度</span>
+        <p class="dl-req"><b data-i18n="dl.win.req1">Windows 10/11</b> · <span data-i18n="dl.win.req2">免安裝，解壓即用</span> · <span data-i18n="dl.win.req3">第一次開啟在 SmartScreen 點「更多資訊 → 仍要執行」</span></p>
+        <a class="btn btn-primary" href="https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec-win64.zip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 11l5 5 5-5M5 21h14"/></svg>
+          <span data-i18n="dl.win.btn">下載 .zip</span>
         </a>
-        <div class="dl-size" data-i18n="dl.win.size">釋出時會在 GitHub 發布 Release</div>
+        <div class="dl-size" data-i18n="dl.win.size">約 100 MB · 從 GitHub Releases 下載</div>
       </div>
     </div>
   </div>
@@ -556,7 +556,7 @@
       <details><summary data-i18n="faq.q1">這合法嗎？</summary><div class="a" data-i18n="faq.a1">YT Rec 只是一個錄製工具。請只錄製你有權錄製、或在合理使用範圍內的內容；是否遵守 YouTube 服務條款與當地法律，由使用者自行負責。</div></details>
       <details><summary data-i18n="faq.q2">會錄到我電腦其他的聲音嗎？</summary><div class="a" data-i18n="faq.a2">不會。它只收那一個直播視窗 App 的聲音，電腦其他 App 的聲音、通知音都不會混進去——已用實機測試驗證零殘留。</div></details>
       <details><summary data-i18n="faq.q3">要錢嗎？</summary><div class="a" data-i18n="faq.a3">完全免費、開源（Apache-2.0）。覺得有用的話，可以到 Ko-fi 請我喝杯咖啡，但完全自由。</div></details>
-      <details><summary data-i18n="faq.q4">Windows 版什麼時候有？</summary><div class="a" data-i18n="faq.a4">開發中。核心邏輯已經移植到跨平台的 .NET，原生擷取與介面正在進行。到 GitHub 點 Watch 追蹤進度，釋出時會發 Release。</div></details>
+      <details><summary data-i18n="faq.q4">有 Windows 版嗎？</summary><div class="a" data-i18n="faq.a4">有，已上線（免安裝版，解壓即用）。因為還沒做程式碼簽章，第一次開啟會跳 SmartScreen 警告，點「更多資訊 → 仍要執行」即可。下載在上方下載區。</div></details>
     </div>
   </div>
 </section>
@@ -581,11 +581,11 @@
   const EN = {
     "nav.why":"Why","nav.how":"How","nav.features":"Features","nav.opensource":"Open Source","nav.support":"Support","nav.download":"Download",
 
-    "hero.badge":"Open source · Free · macOS shipping",
+    "hero.badge":"Open source · Free · Mac + Windows shipping",
     "hero.title":"Grab the stream, <span class=\"hl\">without losing your day</span>.",
     "hero.sub":"No downloading the whole six-hour stream, no waiting with your screen tied up. Hit record and keep using your computer — it captures only that one stream window, and not even your other apps' sound. Works with live streams or regular YouTube videos.",
-    "hero.ctaMac":"Download for Mac","hero.github":"View on GitHub",
-    "hero.note":"macOS 14.4+ · Apple Silicon　|　Windows in development",
+    "hero.ctaMac":"Free download","hero.github":"View on GitHub",
+    "hero.note":"macOS 14.4+ · Apple Silicon　|　Windows 10/11 (portable)",
     "hero.pin":"Always on top","hero.rec":"Recording",
     "hero.callout":"Other windows on top — <b>they aren't recorded</b>.",
 
@@ -617,8 +617,8 @@
     "dl.eyebrow":"Download","dl.title":"Free to download. Start grabbing.",
     "dl.mac.tag":"Available","dl.mac.req1":"macOS 14.4+","dl.mac.req2":"Apple Silicon","dl.mac.req3":"Double-click to install — not blocked by macOS",
     "dl.mac.btn":"Download .dmg","dl.mac.size":"~65 MB · from GitHub Releases",
-    "dl.win.tag":"In development","dl.win.req1":"Windows 11","dl.win.req2":"(10 best-effort)","dl.win.req3":"C# / .NET 8 + WinUI 3",
-    "dl.win.btn":"Follow progress on GitHub","dl.win.size":"A Release will be published when it ships",
+    "dl.win.tag":"Available","dl.win.req1":"Windows 10/11","dl.win.req2":"Portable — unzip & run","dl.win.req3":"First run: SmartScreen → More info → Run anyway",
+    "dl.win.btn":"Download .zip","dl.win.size":"~100 MB · from GitHub Releases",
 
     "os.eyebrow":"Open source","os.title":"Fully open. Visible, trustworthy.",
     "os.body":"YT Rec is released under Apache-2.0. The two platforms are built natively, kept in sync by one shared behavior spec and acceptance tests — the code is public, open to review, issues and contributions.",
@@ -634,7 +634,7 @@
     "faq.q1":"Is this legal?","faq.a1":"YT Rec is just a recording tool. Record only content you're entitled to record, or within fair use; complying with YouTube's Terms and your local laws is your responsibility.",
     "faq.q2":"Will it record my other apps' audio?","faq.a2":"No. It captures only that one stream window's audio — your other apps' sound and notifications stay out. Verified zero bleed on real hardware.",
     "faq.q3":"How much does it cost?","faq.a3":"Completely free and open source (Apache-2.0). If it's useful, a coffee on Ko-fi is welcome — but entirely optional.",
-    "faq.q4":"When is the Windows version coming?","faq.a4":"In development. The core logic is already ported to cross-platform .NET; native capture and UI are in progress. Watch the repo on GitHub — a Release goes out when it ships.",
+    "faq.q4":"Is there a Windows version?","faq.a4":"Yes — it's live (portable, just unzip and run). It isn't code-signed yet, so on first launch click More info → Run anyway on the SmartScreen prompt. Grab it in the download section above.",
 
     "foot.trademark":"© 2026 YT Rec · Open source under Apache-2.0 · \"YT Rec\" and its icon are trademarks · Use only to record content you are entitled to record."
   };
