@@ -1,6 +1,6 @@
 # YT Rec（YT快錄）
 
-> YT Rec 是一個 macOS 桌面工具，只錄下單一 YouTube 直播視窗的畫面與聲音，讓你邊錄邊用電腦工作，而且不會錄到電腦其他 App 的聲音。直播或一般 YouTube 影片都能錄。免費、開源（Apache-2.0）。中文名「YT快錄」，英文字標「YT Rec」。
+> YT Rec 是一個桌面工具（macOS 與 Windows），只錄下單一 YouTube 直播視窗的畫面與聲音，讓你邊錄邊用電腦工作，而且不會錄到電腦其他 App 的聲音。直播或一般 YouTube 影片都能錄。免費、開源（Apache-2.0）。中文名「YT快錄」，英文字標「YT Rec」。
 
 ## 它解決什麼問題
 - 超長或進行中的 YouTube 直播（記者會、立法院、24 小時頻道、政論）下載不切實際，也來不及等錄影檔（VOD）。
@@ -8,7 +8,7 @@
 - YT Rec 用 macOS 的 ScreenCaptureKit 只擷取「那一個直播視窗」——其他視窗疊在上面不會被錄進去，也只收該視窗的聲音。
 
 ## 重點事實
-- 平台：macOS 14.4 以上（Apple Silicon），已簽名與公證。Windows 版開發中。
+- 平台：macOS 14.4 以上（Apple Silicon，已簽名與公證）與 Windows 10/11（安裝程式，尚未程式碼簽章，第一次開啟在 SmartScreen 點「更多資訊 → 仍要執行」）。兩者皆已上線。
 - 價格：免費、開源，採 Apache-2.0 授權。
 - 核心特色：單一視窗擷取、只收該視窗音訊、可見可置頂的浮動監看小窗、進行中／已結束影片智慧判斷、fMP4 抗崩潰長錄。
 - 適用對象：需要搶錄 YouTube 直播的新聞／時事影片工作者或一般使用者。
@@ -17,5 +17,6 @@
 ## 連結
 - 官方網站：https://ytrec.resonaframe.com/
 - macOS 下載（.dmg）：https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec.dmg
+- Windows 下載（安裝程式）：https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec-Setup.exe
 - 開源原始碼（GitHub）：https://github.com/weibing078/yt-rec
 - 贊助（Ko-fi）：https://ko-fi.com/ytrec
