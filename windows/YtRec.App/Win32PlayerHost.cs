@@ -55,13 +55,15 @@ public sealed class Win32PlayerHost
         // On-screen (must be — Windows won't composite a fully off-screen window, so WGC gets no frames), but
         // background/coverable: NOT topmost, WS_EX_NOACTIVATE (no focus-steal), sent to the back. WGC
         // window-capture keeps capturing it while it's covered by the user's windows (verified), so the user
-        // works over it (mac §4 occludable). Created OFF-SCREEN from the start — pushed 99.99% off the top-left,
-        // leaving only a 2 px sliver on-screen so DWM keeps compositing it for WGC — so YouTube LOADS off-screen
-        // and never flashes full-size on the main monitor (mac parity: the capture window is born off-screen).
-        // WS_EX_TRANSPARENT → click-through: the 2 px sliver can never be accidentally clicked by the user
-        // (events pass to whatever is behind). NOACTIVATE = no focus-steal; TOOLWINDOW = no taskbar/Alt-Tab.
+        // works over it (mac §4 occludable). Born parked off the BOTTOM-RIGHT (its origin a 2 px sliver inside
+        // the screen's bottom-right corner, the body hanging off the edge): DWM keeps compositing that sliver for
+        // WGC, but the user sees ~nothing. ⚠️ It is parked bottom-right, NOT top-left negative — a window whose
+        // origin is off the top/left gets "clamped" back on-screen by Windows during show/WebView2 init, which is
+        // what made YouTube flash full-size for a second on a single monitor. A bottom-right origin is never
+        // clamped. WS_EX_TRANSPARENT → click-through (the sliver can't be clicked); TOOLWINDOW → no taskbar/Alt-Tab.
+        var (ox, oy) = OffscreenOrigin();
         Hwnd = CreateWindowEx(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT, ClassName, "YT Rec Player",
-            WS_POPUP, 2 - Width, 2 - Height, Width, Height, IntPtr.Zero, IntPtr.Zero, hInst, IntPtr.Zero);
+            WS_POPUP, ox, oy, Width, Height, IntPtr.Zero, IntPtr.Zero, hInst, IntPtr.Zero);
         if (Hwnd == IntPtr.Zero) throw new InvalidOperationException("CreateWindowEx failed: " + Marshal.GetLastWin32Error());
         ShowWindow(Hwnd, SW_SHOWNA);
         SetWindowPos(Hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
@@ -103,8 +105,23 @@ public sealed class Win32PlayerHost
             _ready.TrySetResult();
         };
 
+        // Creating the WebView2 controller can nudge the host window on-screen; pin it back to the bottom-right
+        // park right before the page loads so YouTube never renders in view during navigation.
+        var (rx, ry) = OffscreenOrigin();
+        SetWindowPos(Hwnd, HWND_BOTTOM, rx, ry, Width, Height, SWP_NOACTIVATE);
+
         _core.Navigate(watchUrl);
         await _ready.Task;
+    }
+
+    /// <summary>Top-left origin that parks the window just off the bottom-right of the primary screen, leaving
+    /// only a 2 px sliver on-screen. The origin stays ON-screen (so Windows never clamps the window back into
+    /// view), while the body hangs off the bottom-right edge where nothing clamps. DWM still composites the
+    /// sliver, so WGC keeps capturing the whole backing surface.</summary>
+    private static (int X, int Y) OffscreenOrigin()
+    {
+        var (sw, sh) = PrimaryScreenPixels();
+        return (sw - 2, sh - 2);
     }
 
     /// <summary>Resize the host window + WebView2 to the content-driven capture size, kept at the top-left and
@@ -112,11 +129,12 @@ public sealed class Win32PlayerHost
     public void Resize(int w, int h)
     {
         if (Hwnd == IntPtr.Zero) return;
-        // Push the window 99.99% off the top-left, leaving only a 2 px sliver on-screen: WGC needs the window
-        // composited (a *fully* off-screen window yields no frames), but it captures the window's whole backing
-        // surface regardless of how much is visible — so the user effectively never sees it (the Mac
-        // off-screen experience) and no opaque lid is needed. Falls back gracefully if WGC clips (we verify).
-        SetWindowPos(Hwnd, HWND_BOTTOM, 2 - w, 2 - h, w, h, SWP_NOACTIVATE);
+        // Keep the window parked off the bottom-right (only a 2 px sliver on-screen): WGC needs it composited
+        // (a *fully* off-screen window yields no frames), but it captures the whole backing surface regardless of
+        // how little shows — so the user effectively never sees it (the Mac off-screen experience), no opaque lid,
+        // and a bottom-right origin is never clamped back on-screen the way a negative top-left one is.
+        var (ox, oy) = OffscreenOrigin();
+        SetWindowPos(Hwnd, HWND_BOTTOM, ox, oy, w, h, SWP_NOACTIVATE);
         if (_controller is not null) _controller.Bounds = new Windows.Foundation.Rect(0, 0, w, h);
     }
 
