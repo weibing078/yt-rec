@@ -171,6 +171,10 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public bool CanStart => !IsBusy && !IsRecording && !IsPreviewing && YtUrl.VideoId(UrlText) != null;
     public bool CanRecord => !IsBusy && !IsRecording && !IsPreviewing && YtUrl.VideoId(UrlText) != null;
 
+    /// <summary>Supplied by the View: prompt the user to continue on a low-disk warning (8–15 GB). Returns true
+    /// to proceed. Null (or no handler) is treated as "don't continue" so a warning is never silently ignored.</summary>
+    public Func<long, Task<bool>>? ConfirmContinueLowDiskAsync { get; set; }
+
     public ObservableCollection<RecentFile> RecentFiles { get; } = new();
 
     public RelayCommand StartCommand { get; }
@@ -256,6 +260,20 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var ffmpeg = BinaryLocator.Resolve(BinaryLocator.Tool.Ffmpeg);
         if (ffmpeg == null) { RefreshTools(); return; }
 
+        // Pre-start disk guard (mac AppState.swift:367-382, shared/spec §Disk guard): refuse <8 GB, warn(confirm)
+        // 8–15 GB — before opening the player, not only during recording. Lookup failure → treated as max → ok.
+        var check = DiskGuard.PreCheck(DiskGuard.FreeBytes(() => TryFreeBytes(OutputPaths.Root)));
+        if (check.State == DiskState.Refuse)
+        {
+            StatusText = $"磁碟空間不足（剩 {FormatBytes(check.FreeBytes)}），未啟動側錄";
+            return;
+        }
+        if (check.State == DiskState.Warn)
+        {
+            var proceed = ConfirmContinueLowDiskAsync is { } confirm && await confirm(check.FreeBytes);
+            if (!proceed) { StatusText = "磁碟空間偏低，已取消側錄"; return; }
+        }
+
         var jobDir = OutputPaths.NewTaskFolder(UrlText);
         Directory.CreateDirectory(jobDir);
 
@@ -263,6 +281,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _capture.Status += t => _ui.TryEnqueue(() => StatusText = t);
         _capture.Finished += path => _ui.TryEnqueue(() => OnRecordFinished(path));
         _capture.Failed += msg => _ui.TryEnqueue(() => OnRecordFailed(msg));
+        _capture.Warning += msg => _ui.TryEnqueue(() => AudioNotice = msg); // non-fatal (e.g. audio device changed)
 
         JobTitle = "螢幕側錄";
         StatusText = "準備中…";
@@ -282,6 +301,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         if (_capture is null || !IsPreviewing || !PreviewReady) return;
         StopPositionPolling();
+        _seekDebounce?.Stop();   // cancel any pending rewind so a late seek can't jump the recording's opening
         _capture.BeginRecording();
         PreviewReady = false;
         IsPreviewing = false;
@@ -352,7 +372,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _seekDebounce = _ui.CreateTimer();
         _seekDebounce.Interval = TimeSpan.FromMilliseconds(120);
         _seekDebounce.IsRepeating = false;
-        _seekDebounce.Tick += (_, _) => { if (_capture is not null) _ = _capture.SeekToBehindAsync(_pendingBehind); };
+        // Guard on IsPreviewing too: once recording has begun a still-pending tick must not seek the player
+        // (that would jump the recording's opening away from the committed point).
+        _seekDebounce.Tick += (_, _) => { if (_capture is not null && IsPreviewing) _ = _capture.SeekToBehindAsync(_pendingBehind); };
     }
 
     private void Nudge(double deltaBehindSec)          // +delta = further back; −delta = toward live
@@ -394,6 +416,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void ResetRecordState()
     {
         StopPositionPolling();
+        _seekDebounce?.Stop();   // no stray seek should land after teardown (cancel / fail / finish)
         IsRecording = false;
         IsPreviewing = false;
         PreviewReady = false;
@@ -453,11 +476,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         if (ffmpeg == null || !Directory.Exists(OutputPaths.Root)) return;
 
         var results = await SegmentReassembler.RecoverAllAsync(
-            OutputPaths.Root, activeJobDir: null, ffmpeg, new ProcessRunner(), OutputPaths.SideRecordOutput);
+            OutputPaths.Root, activeJobDir: null, ffmpeg, new ProcessRunner(), OutputPaths.RecoveryOutput);
 
         var recovered = 0;
         foreach (var (dir, ok, _) in results)
-            if (ok) { AddRecent(OutputPaths.SideRecordOutput(dir), FileKind.Sidecar); recovered++; }
+            if (ok) { AddRecent(OutputPaths.RecoveryOutput(dir), FileKind.Sidecar); recovered++; }
         if (recovered > 0) StatusText = $"已修復 {recovered} 個中斷的側錄";
     }
 
@@ -469,7 +492,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         while (RecentFiles.Count > 5) RecentFiles.RemoveAt(RecentFiles.Count - 1);
     }
 
-    private static string FormatBytes(long bytes)
+    internal static string FormatBytes(long bytes)
     {
         string[] u = { "B", "KB", "MB", "GB", "TB" };
         double v = bytes; var i = 0;
@@ -515,10 +538,15 @@ public static class OutputPaths
         return Path.Combine(Root, $"{stamp} {id}");
     }
 
-    /// <summary>The finalized side-record file for a job dir. Used by both the live finalize and the
-    /// launch-time disaster recovery so they target the same path.</summary>
-    public static string SideRecordOutput(string jobDir) =>
-        Path.Combine(jobDir, Path.GetFileName(jobDir.TrimEnd(Path.DirectorySeparatorChar)) + " 側錄.mp4");
+    /// <summary>The finalized side-record file for a job dir: <c>側錄_&lt;title&gt;.mp4</c> (mac parity,
+    /// shared/spec §Output naming). A blank/unknown title falls back to <c>側錄.mp4</c>.</summary>
+    public static string SideRecordOutput(string jobDir, string? title) =>
+        Path.Combine(jobDir, OutputNaming.SideRecordFileName(title));
+
+    /// <summary>The launch-time disaster-recovery output for a job dir: <c>側錄_上次未收工自動修復.mp4</c>
+    /// (mac AppState.swift:670) — a dedicated name so a recovered file is distinguishable from a normal 側錄.</summary>
+    public static string RecoveryOutput(string jobDir) =>
+        Path.Combine(jobDir, OutputNaming.RecoveryFileName);
 }
 
 public sealed class RelayCommand : ICommand

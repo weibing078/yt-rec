@@ -71,13 +71,22 @@ it from the same rule (`CaptureGeometry`).
 ## Window hiding (capture source must stay unseen)
 - **macOS**: the capture window lives fully **off-screen** (beyond all monitors);
   SCK still captures it. The user never sees it.
-- **Windows**: WGC yields **no frames** for a fully off-screen window, so the player
-  stays on-screen, composited, and is **hidden by other means**:
-  - default: parked at `(0,0)`, no-activate, tool-window (no taskbar/Alt-Tab),
-    pushed to the bottom of the z-order (hidden whenever any window is in front);
-  - worst case (bare single-monitor desktop): covered by an **opaque, immovable,
-    full-player-size app lid** so the live page is never visible. WGC captures the
-    player's **own** surface, so the lid is never in the recording.
+- **Windows**: WGC yields **no frames** for a *fully* off-screen window, so the
+  player is parked just off the **bottom-right of the most bottom-right monitor**
+  (all monitors enumerated — deepest `bottom`, ties → largest `right`; origin at
+  that monitor's `right-2, bottom-2`; single monitor ⇒ same as the old
+  `screenW-2, screenH-2`), leaving only a **2 px sliver** on-screen — enough for
+  DWM to keep compositing it for WGC, but effectively invisible to the user. On
+  `WM_DISPLAYCHANGE` (resolution change / monitor plug-unplug) the park point is
+  recomputed and re-asserted:
+  - `WS_EX_TRANSPARENT` makes the sliver **click-through** (can't be accidentally
+    touched); `WS_EX_TOOLWINDOW` keeps it out of the taskbar/Alt-Tab;
+    `WS_EX_NOACTIVATE` stops it stealing focus.
+  - sent to `HWND_BOTTOM` (bottom of the z-order), so it's also covered whenever
+    any other window is in front — no opaque lid needed.
+  - origin is bottom-right, never top-left/negative: a window whose origin is
+    off the top/left gets clamped back on-screen by Windows during show/init,
+    which caused a startup flash; a bottom-right origin is never clamped.
   - the **WGC yellow capture border is disabled** (`IsBorderRequired = false`) so it
     appears neither on screen nor in the output.
 

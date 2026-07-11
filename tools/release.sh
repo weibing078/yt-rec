@@ -38,17 +38,31 @@ echo "✓ web/latest.json → $ver ($date_iso)"
 # 2) App version strings — so the running app knows its own version for the IsNewer compare.
 # PlistBuddy, not sed — the key/string sit on separate lines, which a line-based sed can't span.
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $ver" mac/scripts/Info.plist
-echo "✓ mac Info.plist CFBundleShortVersionString → $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' mac/scripts/Info.plist)"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $ver" mac/scripts/Info.plist
+echo "✓ mac Info.plist CFBundleShortVersionString/CFBundleVersion → $(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' mac/scripts/Info.plist)"
 if grep -q '<Version>' windows/YtRec.App/YtRec.App.csproj; then
   sed -i '' -E "s#<Version>[^<]*</Version>#<Version>$ver</Version>#" windows/YtRec.App/YtRec.App.csproj
   echo "✓ windows YtRec.App.csproj <Version> → $ver"
 fi
+# Windows installer defaults — kept in sync so a forgotten -Version flag on the build box still
+# bakes the right version instead of silently reverting to the last release (see checklist step 2).
+sed -i '' -E "s/Version = \"[^\"]*\"/Version = \"$ver\"/" windows/installer/build-installer.ps1
+echo "✓ windows build-installer.ps1 default -Version → $ver"
+sed -i '' -E "s/AppVersion \"[^\"]*\"/AppVersion \"$ver\"/" windows/installer/YtRec.iss
+echo "✓ windows YtRec.iss default AppVersion → $ver"
+
+# 3) Landing-page copy that isn't sourced from latest.json — keep it from self-contradicting.
+sed -i '' -E "s#\"softwareVersion\": \"[^\"]*\"#\"softwareVersion\": \"$ver\"#" web/index.html
+echo "✓ web/index.html JSON-LD softwareVersion → $ver"
 
 cat <<NEXT
 
 Next (manual — distribution stays your call, ADR-0005):
   1. Commit the version bump:  git commit -am "release: v$ver"
-  2. Build:    mac → mac/scripts/make-dmg.sh   ·   win → windows/installer/build-installer.ps1 (on the box)
+  2. Build:
+       mac → mac/scripts/package-app.sh && mac/scripts/make-dmg.sh   (produces dist/YT-Rec.dmg)
+       win → windows/installer/build-installer.ps1 -Version $ver     (on the box; defaults were bumped
+                                                                       above, but pass it explicitly anyway)
   3. GitHub:   draft a Release tagged v$ver, attach YT-Rec.dmg (+ YT-Rec-Setup.exe)
   4. Deploy:   publish web/ to Cloudflare Pages (latest.json must go live)
   5. Verify:   curl -s https://ytrec.resonaframe.com/latest.json | grep '"version": "$ver"'

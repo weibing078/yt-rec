@@ -162,7 +162,11 @@ final class RecorderEngine: NSObject, SCStreamOutput, SCStreamDelegate, AVAssetW
     /// 每秒回報錄製時長（牆鐘起算，穩定遞增、不受寫檔背壓影響；只在檔案真的在收時才跑，
     /// 避免徽章顯示在播但檔案還沒落地的假象——修審查 #2/#5/#8）。
     private func tickElapsed() {
-        if let start = sessionStartWall { onElapsed?(Date().timeIntervalSince(start)) }
+        // sessionStartWall 由 writerQueue 寫入（handleVideo/appendAudio 起 session 時）；
+        // 這裡在 main（elapsedTimer）讀取，也走 writerQueue.sync，與其他跨緒 writer 狀態同序，
+        // 避免撕裂讀到半寫的 Date? 而算出極大 elapsed 誤觸時長上限收工（修資料競爭）。
+        let start: Date? = writerQueue.sync { sessionStartWall }
+        if let start { onElapsed?(Date().timeIntervalSince(start)) }
     }
 
     private var healthTicks = 0   // 只在 main（healthTimer）觸碰
@@ -433,9 +437,19 @@ final class RecorderEngine: NSObject, SCStreamOutput, SCStreamDelegate, AVAssetW
             }
             Log.error("recorder", "remux 失敗：\(r.output.suffix(300))")
         }
-        // ffmpeg 不在就直接用 fMP4 檔
-        try? FileManager.default.moveItem(at: combined, to: finalFile)
-        return FileManager.default.fileExists(atPath: finalFile.path) ? finalFile : nil
+        // ffmpeg 不在、或 remux 失敗：改用完整可播的 fMP4 當輸出。
+        return Self.fallbackToCombined(combined: combined, finalFile: finalFile)
+    }
+
+    /// remux 不可用或失敗時的保底：用完整的 combined fMP4 取代輸出。
+    /// 關鍵：remux 失敗時 ffmpeg 的 `-y` 已在 finalFile 留下無 moov 的殘檔，
+    /// 若不先清掉，moveItem 會因目的檔已存在而丟例外（被 try? 吞掉），
+    /// 導致可用的 combined 沒被搬過去、卻回傳那個壞殘檔當成功。
+    /// 故先移除殘檔再 move，並驗證搬移後確實有內容（>0）才算成功，否則回報失敗。
+    static func fallbackToCombined(combined: URL, finalFile: URL, fm: FileManager = .default) -> URL? {
+        try? fm.removeItem(at: finalFile)
+        try? fm.moveItem(at: combined, to: finalFile)
+        return FileUtil.fileSize(finalFile) > 0 ? finalFile : nil
     }
 
     // MARK: - 純決策（可測，與 SCK/Writer 解耦）

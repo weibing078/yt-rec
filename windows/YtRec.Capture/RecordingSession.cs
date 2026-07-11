@@ -47,16 +47,24 @@ public sealed class RecordingSession : IDisposable
     private ID3D11Texture2D? _staging;
     private byte[]? _frameBuf;
     private Stopwatch? _videoClock;
+    private long _skippedVideoFrames; // frames of stalled time re-anchored away (CFR catch-up bound, §2)
 
     private Process? _ff;
     private Stream? _videoStdin;
     private FileStream? _audioFile;
     private readonly StringBuilder _stderr = new();
     private volatile bool _stopped;
+    private volatile bool _faulted; // a throw escaped the capture callback — stop accepting frames, report once
     private bool _setup;            // first-frame crop/buffer setup done (needed by preview AND recording)
     private volatile bool _writing; // false = preview only (no file); true = recording to ffmpeg
 
     public Action<byte[], int, int>? OnPreviewFrame { get; set; }
+
+    /// <summary>Raised (once) when a throw escapes the free-threaded WGC callback — GPU device-loss/TDR, a
+    /// hybrid iGPU↔dGPU switch, a display unplug, or ffmpeg failing to spawn. The callback runs on an MTA pool
+    /// thread where an unhandled exception would terminate the whole app, so we catch, stop, and hand the
+    /// message to the caller (which finalizes and surfaces it) instead of letting it escape.</summary>
+    public Action<string>? OnError { get; set; }
     // Mirror every 2nd captured frame (~15 fps at 30 fps source). The preview is now downscaled before it
     // reaches the UI (PreviewScaler), so a higher cadence is cheap and the viewfinder looks smooth, not choppy.
     public int PreviewEveryNthFrame { get; set; } = 2;
@@ -164,9 +172,25 @@ public sealed class RecordingSession : IDisposable
 
     private void OnFrame(Direct3D11CaptureFramePool sender, object _)
     {
+        // Exception boundary: FrameArrived fires on a free-threaded (MTA) pool thread, so an unhandled throw
+        // here is NOT routed to WinUI's UI-thread handler — .NET would terminate the process mid-recording and
+        // the app window would vanish with no message. Catch everything OUTSIDE the lock (so the lock is already
+        // released when we report), stop cleanly, and surface it via OnError. See §3.
+        try
+        {
+            OnFrameLocked(sender);
+        }
+        catch (Exception ex)
+        {
+            OnFrameFault(ex);
+        }
+    }
+
+    private void OnFrameLocked(Direct3D11CaptureFramePool sender)
+    {
         lock (_lock)
         {
-            if (_stopped) return;
+            if (_stopped || _faulted) return;
             using var frame = sender.TryGetNextFrame();
             if (frame is null) return;
 
@@ -222,15 +246,36 @@ public sealed class RecordingSession : IDisposable
             }
 
             // Real-time CFR pacing (clock starts at the first written frame): emit the latest frame as many
-            // times as wall-clock says are due so the file plays at true speed.
+            // times as wall-clock says are due so the file plays at true speed. The catch-up is BOUNDED to
+            // 2 s of frames (2*fps) — comfortably above scheduler jitter / a few dropped frames, far below a
+            // real stall. Past that, a long capture stall (system sleep despite SleepPrevention, a lid-close,
+            // or a lengthy WebView2 freeze) would otherwise dump thousands of duplicate frames in one burst
+            // under _lock, hanging Stop on the "整理檔案中…" screen and bloating the file / filling the disk;
+            // CfrPacing re-anchors the clock and emits one frame instead (§2).
             _videoClock ??= Stopwatch.StartNew();
-            long target = (long)(_videoClock.Elapsed.TotalSeconds * _fps);
-            while (_result.VideoFrames <= target)
+            long rawFrames = (long)(_videoClock.Elapsed.TotalSeconds * _fps);
+            var (toWrite, skipped) = CfrPacing.CatchUp(rawFrames, _result.VideoFrames, _skippedVideoFrames, 2 * _fps);
+            _skippedVideoFrames = skipped;
+            for (int i = 0; i < toWrite; i++)
             {
                 try { _videoStdin!.Write(_frameBuf!, 0, _frameBuf!.Length); _result.VideoFrames++; }
                 catch (IOException) { break; } // ffmpeg gone
             }
         }
+    }
+
+    /// <summary>Handle a throw that escaped the capture callback: mark faulted (so further frames no-op),
+    /// record the cause, and hand it to <see cref="OnError"/> exactly once. We do NOT stop here — the caller's
+    /// error handler drives a clean StopAsync so the partial recording is finalized on the UI thread.</summary>
+    private void OnFrameFault(Exception ex)
+    {
+        lock (_lock)
+        {
+            if (_faulted || _stopped) return;
+            _faulted = true;
+            _result.Error ??= $"capture callback faulted: {ex.Message}";
+        }
+        OnError?.Invoke(ex.Message);
     }
 
     private void StartVideoFfmpeg(int inW, int inH, int outW, int outH)
@@ -259,7 +304,14 @@ public sealed class RecordingSession : IDisposable
             "-hls_segment_filename", SegmentReassembler.SegmentPattern,
             "index.m3u8");
 
-        _ff = Process.Start(psi)!;
+        // A spawn failure here (e.g. the bundled ffmpeg.exe was quarantined/removed by antivirus) throws on the
+        // capture thread; wrap it in a clear, actionable message so OnFrameFault surfaces "ffmpeg 無法啟動…"
+        // instead of a raw Win32Exception (§3).
+        try { _ff = Process.Start(psi)!; }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException("ffmpeg 無法啟動（可能被防毒軟體隔離或刪除，請重新安裝工具）", ex);
+        }
         _ff.ErrorDataReceived += (_, e) => { if (e.Data is not null) lock (_stderr) _stderr.AppendLine(e.Data); };
         _ff.BeginErrorReadLine();
         _videoStdin = _ff.StandardInput.BaseStream;
@@ -275,31 +327,42 @@ public sealed class RecordingSession : IDisposable
             _stopped = true;
         }
 
-        try { _session?.Dispose(); } catch { }
-        try { _pool?.Dispose(); } catch { }
+        try { _session?.Dispose(); } catch { } _session = null;
+        try { _pool?.Dispose(); } catch { } _pool = null;
         if (_writing) _audio.Stop();   // only started in BeginWriting(); a cancelled preview never started it
         if (_audioFile is not null) { try { _audioFile.Flush(); _audioFile.Dispose(); } catch { } _audioFile = null; }
 
-        if (_videoStdin is not null) { try { _videoStdin.Flush(); } catch { } _videoStdin.Close(); }
+        if (_videoStdin is not null) { try { _videoStdin.Flush(); } catch { } _videoStdin.Close(); _videoStdin = null; }
         if (_ff is not null)
         {
             await _ff.WaitForExitAsync();
             _result.FfmpegExitCode = _ff.ExitCode;
             if (_ff.ExitCode != 0) _result.Error = $"video ffmpeg exit {_ff.ExitCode}: {_stderr}".Trim();
         }
-        else if (_writing) _result.Error = "no video frames arrived"; // (a cancelled preview legitimately has none)
+        else if (_writing && _result.Error is null) _result.Error = "no video frames arrived"; // (a cancelled preview legitimately has none)
 
+        ReleaseResources();
         return _result;
+    }
+
+    /// <summary>Release the sleep lock + D3D device/context/staging + ffmpeg process + audio. Idempotent (each
+    /// handle is nulled after release). §1: these used to be freed only in <see cref="Dispose"/>, so the
+    /// fire-and-forget StopAsync on the CancelPreview path leaked them — leaving the display-sleep block set
+    /// (machine never sleeps) and a full D3D11 device + staging texture per cancelled preview. Folding them
+    /// into StopAsync means stopping always clears them, whether or not Dispose is ever called.</summary>
+    private void ReleaseResources()
+    {
+        _awake?.Dispose(); _awake = null;             // clears the SetThreadExecutionState display/sleep block
+        _staging?.Dispose(); _staging = null;
+        _context?.Dispose(); _context = null;
+        _d3d?.Dispose(); _d3d = null;
+        _ff?.Dispose(); _ff = null;
+        _audio.Dispose();                             // idempotent (Stop is a no-op once stopped)
     }
 
     public void Dispose()
     {
         if (!_stopped) { try { StopAsync().GetAwaiter().GetResult(); } catch { } }
-        _ff?.Dispose();
-        _staging?.Dispose();
-        _context?.Dispose();
-        _d3d?.Dispose();
-        _audio.Dispose();
-        _awake?.Dispose();
+        ReleaseResources(); // belt-and-suspenders: covers a StopAsync that threw before releasing
     }
 }

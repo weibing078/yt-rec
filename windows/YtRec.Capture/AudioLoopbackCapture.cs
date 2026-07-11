@@ -32,6 +32,12 @@ public sealed class AudioLoopbackCapture : IDisposable
 
     public AudioPcmFormat Format { get; } = AudioPcmFormat.Default;
 
+    /// <summary>Raised (once) when the bound audio endpoint is invalidated mid-capture — on the Win10
+    /// system-loopback path the IAudioClient is tied to the default render endpoint acquired at Start, so
+    /// unplugging it or switching the default output device kills audio. Video keeps recording; the caller
+    /// surfaces a warning. (The Win11 process-loopback path is device-agnostic and never raises this.)</summary>
+    public Action? OnDeviceLost { get; set; }
+
     private readonly Source _source;
     private readonly uint _pid;
 
@@ -152,15 +158,25 @@ public sealed class AudioLoopbackCapture : IDisposable
             while (_running)
             {
                 if (WaitForSingleObject(_event, 200) != WAIT_OBJECT_0) continue;
-                while (_capture!.GetNextPacketSize(out var frames) == S_OK && frames > 0)
+                int hr;
+                while ((hr = _capture!.GetNextPacketSize(out var frames)) == S_OK && frames > 0)
                 {
-                    if (_capture.GetBuffer(out var pData, out var numFrames, out var dwFlags, out _, out var qpc) != S_OK) break;
+                    var gb = _capture.GetBuffer(out var pData, out var numFrames, out var dwFlags, out _, out var qpc);
+                    if (gb != S_OK) { hr = gb; break; }
                     var bytes = (int)numFrames * block;
                     if (buf.Length < bytes) buf = new byte[bytes];
                     if ((dwFlags & AUDCLNT_BUFFERFLAGS_SILENT) != 0) Array.Clear(buf, 0, bytes);
                     else Marshal.Copy(pData, buf, 0, bytes);
                     onPcm(buf, bytes, (long)qpc);
                     _capture.ReleaseBuffer(numFrames);
+                }
+                // Endpoint invalidated (unplugged / default output changed): the loopback client is dead and
+                // no more audio will arrive, so it would otherwise just go silent. Report once and stop the
+                // audio loop — the video recording is unaffected and keeps running.
+                if (_running && hr == AUDCLNT_E_DEVICE_INVALIDATED)
+                {
+                    OnDeviceLost?.Invoke();
+                    break;
                 }
             }
         }

@@ -135,6 +135,12 @@ public static class PlayerAssets
         })();
         """;
 
+    /// <summary>Returns the watch page's title with the trailing " - YouTube" stripped (mac parity:
+    /// MonitorWindowController strips the same suffix), used to name the side-record file <c>側錄_&lt;title&gt;.mp4</c>.
+    /// Read at finalize time while the player is still alive; ExecuteScriptAsync yields a JSON string literal.</summary>
+    public const string TitleScript =
+        "(function(){return (document.title||'').replace(' - YouTube','');})();";
+
     /// <summary>Script that returns the player's progress state JSON (current/seekable range) for the
     /// rewind UI — current, duration and the DVR seekable window for live streams.</summary>
     public const string ProgressStateScript =

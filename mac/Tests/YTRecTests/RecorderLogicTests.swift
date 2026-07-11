@@ -37,6 +37,60 @@ final class HealthDecisionTests: XCTestCase {
     }
 }
 
+/// remux 不可用/失敗時的保底搬移：用真實暫存檔驗證「殘檔先清、搬移後驗大小」的行為。
+final class FallbackToCombinedTests: XCTestCase {
+    private var dir: URL!
+
+    override func setUpWithError() throws {
+        dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ytrec-fallback-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    }
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: dir)
+    }
+
+    func testResidualBrokenFileReplacedByIntactCombined() throws {
+        // 核心 bug：ffmpeg 的 -y 已在 finalFile 留下壞殘檔，combined 才是完整可用的資料。
+        let combined = dir.appendingPathComponent("combined_fmp4.mp4")
+        let finalFile = dir.appendingPathComponent("側錄.mp4")
+        try Data("GOOD_FMP4_DATA".utf8).write(to: combined)
+        try Data("X".utf8).write(to: finalFile)   // ffmpeg 殘檔（無 moov）
+
+        let result = RecorderEngine.fallbackToCombined(combined: combined, finalFile: finalFile)
+
+        XCTAssertEqual(result, finalFile)
+        // 回傳的是完整 combined 的內容，不是壞殘檔
+        XCTAssertEqual(try Data(contentsOf: finalFile), Data("GOOD_FMP4_DATA".utf8))
+        // combined 已被搬走
+        XCTAssertFalse(FileManager.default.fileExists(atPath: combined.path))
+    }
+
+    func testNoResidualMovesCombined() throws {
+        let combined = dir.appendingPathComponent("combined_fmp4.mp4")
+        let finalFile = dir.appendingPathComponent("側錄.mp4")
+        try Data("GOOD".utf8).write(to: combined)   // finalFile 尚不存在（ffmpeg 不在的情況）
+
+        let result = RecorderEngine.fallbackToCombined(combined: combined, finalFile: finalFile)
+
+        XCTAssertEqual(result, finalFile)
+        XCTAssertEqual(try Data(contentsOf: finalFile), Data("GOOD".utf8))
+    }
+
+    func testMissingCombinedReturnsNilNotBrokenFile() throws {
+        // combined 不存在（拼接已失敗前不會走到這；此處模擬搬移失敗）+ finalFile 有壞殘檔。
+        let combined = dir.appendingPathComponent("does_not_exist.mp4")
+        let finalFile = dir.appendingPathComponent("側錄.mp4")
+        try Data("BROKEN".utf8).write(to: finalFile)
+
+        let result = RecorderEngine.fallbackToCombined(combined: combined, finalFile: finalFile)
+
+        // 寧可回報失敗，也不能把壞殘檔當成功保存
+        XCTAssertNil(result)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: finalFile.path))
+    }
+}
+
 final class RetimeMoreTests: XCTestCase {
     private func makeBuffer(pts: CMTime, dts: CMTime = .invalid,
                             duration: CMTime = CMTime(value: 1, timescale: 30)) -> CMSampleBuffer? {

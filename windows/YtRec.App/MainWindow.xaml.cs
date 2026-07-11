@@ -29,24 +29,54 @@ public sealed partial class MainWindow : Window
         try { AppWindow.SetIcon("Assets\\AppIcon.ico"); } catch { /* icon optional */ }
         AppWindow.Resize(new SizeInt32(480, 720));
 
+        // Pre-start disk guard's warn band (8–15 GB): the ViewModel asks the View to confirm before recording.
+        Vm.ConfirmContinueLowDiskAsync = async free =>
+        {
+            var dlg = new ContentDialog
+            {
+                Title = "磁碟空間偏低",
+                Content = $"輸出磁碟只剩約 {MainViewModel.FormatBytes(free)}，側錄可能很快就會因空間不足自動存檔。仍要繼續嗎？",
+                PrimaryButtonText = "繼續側錄",
+                CloseButtonText = "取消",
+                DefaultButton = ContentDialogButton.Close,
+                XamlRoot = RootGrid.XamlRoot,
+            };
+            try { return await dlg.ShowAsync() == ContentDialogResult.Primary; }
+            catch { return false; }
+        };
+
         // Disaster recovery: rebuild any side-record interrupted by a crash/kill (off the UI thread).
         _ = Vm.RecoverOrphansAsync();
     }
 
     private async void OnPaste(object sender, RoutedEventArgs e)
     {
-        var content = Clipboard.GetContent();
-        if (content.Contains(StandardDataFormats.Text))
-            Vm.UrlText = (await content.GetTextAsync()).Trim();
+        // Clipboard.GetContent()/GetTextAsync() throw COMException when another app holds the clipboard open
+        // (Win+V, clipboard managers, RDP) — a common race. This is async void, so an escape would crash the app.
+        try
+        {
+            var content = Clipboard.GetContent();
+            if (content.Contains(StandardDataFormats.Text))
+                Vm.UrlText = (await content.GetTextAsync()).Trim();
+        }
+        catch { try { await Info("貼上失敗", "無法讀取剪貼簿（可能被其他程式占用），請再貼一次。"); } catch { } }
     }
 
-    private async void OnPermissions(object sender, RoutedEventArgs e) =>
-        await Info("權限 / Permissions",
-            "側錄（螢幕擷取）用的是 Windows.Graphics.Capture，會在第一次擷取時由系統確認，不需事先授權。" +
-            "下載軌不需要任何權限。");
+    private async void OnPermissions(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            await Info("權限 / Permissions",
+                "側錄（螢幕擷取）用的是 Windows.Graphics.Capture，會在第一次擷取時由系統確認，不需事先授權。" +
+                "下載軌不需要任何權限。");
+        }
+        catch { /* dialog already open / transient — ignore */ }
+    }
 
     private async void OnSettings(object sender, RoutedEventArgs e)
     {
+      try
+      {
         var combo = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
         combo.Items.Add("3 小時");
         combo.Items.Add("6 小時（預設）");
@@ -90,6 +120,8 @@ public sealed partial class MainWindow : Window
                 2 => DurationCap.TwelveHours,
                 _ => DurationCap.Unlimited,
             };
+      }
+      catch { /* dialog already open / transient — ignore rather than crash (async void) */ }
     }
 
     // Drag a recent output straight into Premiere (or any app that accepts file drops).
@@ -112,8 +144,14 @@ public sealed partial class MainWindow : Window
 
     private async void OnPlay(object sender, RoutedEventArgs e)
     {
-        if (sender is FrameworkElement { Tag: string path } && File.Exists(path))
-            await Launcher.LaunchFileAsync(await Windows.Storage.StorageFile.GetFileFromPathAsync(path));
+        // TOCTOU: the file can be moved/deleted between File.Exists and GetFileFromPathAsync (Premiere workflow),
+        // which throws on the async-void continuation → crash. Guard it and tell the user instead.
+        try
+        {
+            if (sender is FrameworkElement { Tag: string path } && File.Exists(path))
+                await Launcher.LaunchFileAsync(await Windows.Storage.StorageFile.GetFileFromPathAsync(path));
+        }
+        catch { try { await Info("無法開啟", "這個檔案可能已經被移動或刪除了。"); } catch { } }
     }
 
     private void OnReveal(object sender, RoutedEventArgs e)
@@ -137,8 +175,14 @@ public sealed partial class MainWindow : Window
 
     private void OnDownloadUpdate(object sender, RoutedEventArgs e)
     {
-        if (!string.IsNullOrEmpty(Vm.UpdateUrl))
-            try { Process.Start(new ProcessStartInfo(Vm.UpdateUrl) { UseShellExecute = true }); } catch { }
+        var url = Vm.UpdateUrl;
+        if (string.IsNullOrEmpty(url)) return;
+        // UseShellExecute runs the shell's default action on the string — a tampered latest.json could hand us a
+        // local path / UNC / .exe that would be EXECUTED, not opened. Only ever hand the shell http(s).
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var u) ||
+            (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps))
+            return;
+        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
     }
 
     private async Task Info(string title, string message) =>

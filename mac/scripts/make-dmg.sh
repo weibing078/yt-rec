@@ -9,7 +9,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 APP="dist/YT Rec.app"
-DMG="dist/YT Rec.dmg"
+DMG="dist/YT-Rec.dmg"
 VOL="YT Rec"
 
 [[ -d "$APP" ]] || { echo "✗ 找不到 $APP，請先跑 scripts/package-app.sh"; exit 1; }

@@ -41,6 +41,23 @@ final class YtURLTests: XCTestCase {
         // 從剪貼簿貼上常帶頭尾空白／換行
         XCTAssertEqual(YtURL.videoID("  https://youtu.be/jNQXAC9IVRw \n"), "jNQXAC9IVRw")
     }
+
+    func testRejectsSpoofedHosts() {
+        // 仿冒網域：舊的子字串 contains 會誤放行，精確網域比對必須拒絕
+        XCTAssertFalse(YtURL.isProbablyYouTube("https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ"))
+        XCTAssertFalse(YtURL.isProbablyYouTube("https://notyoutube.com/watch?v=dQw4w9WgXcQ"))
+        XCTAssertFalse(YtURL.isProbablyYouTube("https://youtu.be.evil.com/jNQXAC9IVRw"))
+        XCTAssertFalse(YtURL.isProbablyYouTube("https://evil.com/youtube.com"))   // 只出現在 path，非 host
+        // 白名單本體與合法子網域（www./m./music.）仍要通過
+        XCTAssertTrue(YtURL.isProbablyYouTube("https://youtube.com/watch?v=dQw4w9WgXcQ"))        // 無 www
+        XCTAssertTrue(YtURL.isProbablyYouTube("https://www.youtube.com/watch?v=dQw4w9WgXcQ"))
+        XCTAssertTrue(YtURL.isProbablyYouTube("https://m.youtube.com/watch?v=dQw4w9WgXcQ"))
+        XCTAssertTrue(YtURL.isProbablyYouTube("https://music.youtube.com/watch?v=dQw4w9WgXcQ"))
+        XCTAssertTrue(YtURL.isProbablyYouTube("https://youtu.be/jNQXAC9IVRw"))
+        // 既有合法格式（shorts、live）也要繼續通過
+        XCTAssertTrue(YtURL.isProbablyYouTube("https://www.youtube.com/shorts/abcDEF12345"))
+        XCTAssertTrue(YtURL.isProbablyYouTube("https://www.youtube.com/live/abcDEF12345"))
+    }
 }
 
 final class YtDlpParseTests: XCTestCase {

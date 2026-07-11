@@ -75,17 +75,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         let state = AppState.shared
-        guard state.isRecording else { isTerminating = true; return .terminateNow }
-        // 錄影中誤關 = 丟掉錄不回來的直播。先確認，再保存收工。
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = "還在錄影中，確定要結束嗎？"
-        alert.informativeText = "結束會停止錄影並保存目前進度。"
-        alert.addButton(withTitle: "繼續錄影")
-        alert.addButton(withTitle: "結束並保存")
-        NSApp.activate(ignoringOtherApps: true)
-        // 取消（繼續錄影）→ 不終止，isTerminating 維持 false。
-        guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
+        // 沒有任何進行中工作 → 直接結束。
+        // 只要還有活的工作（錄影／定位／下載軌輪詢）就一律走 emergencyFinalize 收尾，否則
+        // yt-dlp/ffmpeg 子行程會被 reparent 給 launchd 成孤兒續跑，使用者關了 App 也停不掉（修孤兒行程）。
+        guard state.isBusy else { isTerminating = true; return .terminateNow }
+        // 錄影中誤關 = 丟掉錄不回來的直播，先確認再保存收工；純下載/定位不需確認，
+        // 但仍要走 emergencyFinalize 取消下載軌與定位擷取。
+        if state.isRecording {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "還在錄影中，確定要結束嗎？"
+            alert.informativeText = "結束會停止錄影並保存目前進度。"
+            alert.addButton(withTitle: "繼續錄影")
+            alert.addButton(withTitle: "結束並保存")
+            NSApp.activate(ignoringOtherApps: true)
+            // 取消（繼續錄影）→ 不終止，isTerminating 維持 false。
+            guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
+        }
         isTerminating = true
         Task { @MainActor in
             await state.emergencyFinalize()

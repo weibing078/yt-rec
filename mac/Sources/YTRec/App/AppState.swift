@@ -556,9 +556,11 @@ final class AppState: ObservableObject {
             }
             if !j.trackA.isSettled {
                 j.infoMessage = "側錄已收工。下載軌仍在背景輪詢原生高畫質檔。"
-            } else {
-                cleanupWork(j)
             }
+            // cleanupWork 只清 recorder 的 .work（暫存切片），與下載軌 trackA 無關。
+            // 側錄已收工就一律清掉，別讓遺留切片在下次啟動被 recoverOrphanRecordings 誤判成
+            // 「上次未收工」而生出幻影重複檔＋假修復通知（trackA 是否 settled 只決定要不要顯示 infoMessage）。
+            cleanupWork(j)
         }
     }
 

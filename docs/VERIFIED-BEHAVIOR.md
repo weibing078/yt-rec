@@ -231,9 +231,15 @@ and **[PARITY]** for things the Windows port must replicate.
   WGC **window-capture keeps capturing while the player is occluded/in the background** (verified: recorded
   the video while a maximized Notepad fully covered it). So the player is created NOT-topmost, `WS_EX_NOACTIVATE`,
   sent to `HWND_BOTTOM` — the user covers it with their work and it still records.
-- **[PITFALL] On-screen is required.** A fully off-screen window (even at a 1px sliver) is NOT composited →
-  window-capture gets no frames (Windows ≠ macOS, which composites off-screen windows). The player must stay
-  on a monitor; "hidden" therefore means "covered", not "off-screen".
+- **[PITFALL → SOLVED] A *fully* off-screen window is NOT composited** → window-capture gets no frames
+  (Windows ≠ macOS, which composites fully off-screen windows). Fix shipped: park the window's **origin**
+  on-screen just inside the bottom-right corner of the **most bottom-right monitor** (all monitors
+  enumerated; origin at that monitor's `right-2, bottom-2` — v1.1.2 multi-monitor-aware, re-parked on
+  `WM_DISPLAYCHANGE`; single monitor ⇒ the old `screenW-2, screenH-2`), so only a **2 px sliver** stays
+  composited for WGC while the rest of the window hangs off the edge — DWM keeps compositing the whole
+  backing surface as long as any part is on-screen, so WGC still captures the full player. Combined with
+  `WS_EX_TRANSPARENT` (click-through) and `HWND_BOTTOM` (covered by other windows too), the user never
+  sees or touches it — no opaque lid required (see behavior-spec.md §Window hiding).
 - **[PITFALL → SOLVED] Fullscreen/large video → hardware overlay → uncapturable.** When the YouTube video is
   made to fill the window (the `/embed` player, or CSS sizing #movie_player to 100vw/100vh), Chromium pushes
   it to a hardware overlay (MPO) that **neither WGC window/monitor-capture NOR a GDI screenshot can see — it

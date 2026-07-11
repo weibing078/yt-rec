@@ -50,6 +50,11 @@ public sealed class Win32PlayerHost
 
     public async Task LoadAsync(string watchUrl, string userDataFolder)
     {
+        // Fail early with a clear zh message if the WebView2 Runtime isn't installed (common on a fresh Win10
+        // box) — otherwise CreateWithOptionsAsync throws a raw COM error a non-technical user can't act on.
+        try { _ = CoreWebView2Environment.GetAvailableBrowserVersionString(); }
+        catch { throw new InvalidOperationException("找不到 WebView2 執行階段，請先安裝 Microsoft Edge WebView2 Runtime 後再試一次。"); }
+
         EnsureClass();
         var hInst = GetModuleHandle(null);
         // On-screen (must be — Windows won't composite a fully off-screen window, so WGC gets no frames), but
@@ -65,6 +70,7 @@ public sealed class Win32PlayerHost
         Hwnd = CreateWindowEx(WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT, ClassName, "YT Rec Player",
             WS_POPUP, ox, oy, Width, Height, IntPtr.Zero, IntPtr.Zero, hInst, IntPtr.Zero);
         if (Hwnd == IntPtr.Zero) throw new InvalidOperationException("CreateWindowEx failed: " + Marshal.GetLastWin32Error());
+        s_current = this;   // the static WndProc re-parks this instance on WM_DISPLAYCHANGE
         ShowWindow(Hwnd, SW_SHOWNA);
         SetWindowPos(Hwnd, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 
@@ -114,14 +120,36 @@ public sealed class Win32PlayerHost
         await _ready.Task;
     }
 
-    /// <summary>Top-left origin that parks the window just off the bottom-right of the primary screen, leaving
-    /// only a 2 px sliver on-screen. The origin stays ON-screen (so Windows never clamps the window back into
-    /// view), while the body hangs off the bottom-right edge where nothing clamps. DWM still composites the
-    /// sliver, so WGC keeps capturing the whole backing surface.</summary>
+    /// <summary>Top-left origin that parks the window just off the bottom-right of the MOST bottom-right monitor,
+    /// leaving only a 2 px sliver on-screen. The origin stays ON-screen (so Windows never clamps the window back
+    /// into view), while the body hangs off that monitor's bottom-right edge — into empty virtual space, not onto
+    /// a second monitor. DWM still composites the sliver, so WGC keeps capturing the whole backing surface.
+    /// Enumerating (not just the primary) fixes the body showing on a second monitor and lets a display change
+    /// re-park onto whatever screen is now furthest bottom-right (selection logic in <see cref="OffscreenPark"/>).</summary>
     private static (int X, int Y) OffscreenOrigin()
     {
-        var (sw, sh) = PrimaryScreenPixels();
-        return (sw - 2, sh - 2);
+        var mons = EnumerateMonitors();
+        if (mons.Count == 0) { var (sw, sh) = PrimaryScreenPixels(); return (sw - 2, sh - 2); }
+        return OffscreenPark.Origin(mons);
+    }
+
+    /// <summary>Re-park the live window onto the current display layout (called from the WndProc on
+    /// WM_DISPLAYCHANGE). Keeps the current size; only the origin moves.</summary>
+    private void RePark()
+    {
+        if (Hwnd == IntPtr.Zero) return;
+        var (ox, oy) = OffscreenOrigin();
+        SetWindowPos(Hwnd, HWND_BOTTOM, ox, oy, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+
+    private static List<ScreenRect> EnumerateMonitors()
+    {
+        var list = new List<ScreenRect>();
+        // Synchronous callback — the lambda's lifetime is bounded by this call, no need to pin.
+        EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero,
+            (IntPtr h, IntPtr hdc, ref RECT r, IntPtr d) => { list.Add(new ScreenRect(r.Left, r.Top, r.Right, r.Bottom)); return true; },
+            IntPtr.Zero);
+        return list;
     }
 
     /// <summary>Resize the host window + WebView2 to the content-driven capture size, kept at the top-left and
@@ -157,8 +185,23 @@ public sealed class Win32PlayerHost
     public async Task<string?> ProgressStateAsync()
         => _core is null ? null : await _core.ExecuteScriptAsync(PlayerAssets.ProgressStateScript);
 
+    /// <summary>The watch page's video title (" - YouTube" stripped), for naming the side-record file. Read while
+    /// the player is still alive (before Close). ExecuteScriptAsync returns a JSON string literal → decode it;
+    /// null/empty if unavailable.</summary>
+    public async Task<string?> TitleAsync()
+    {
+        if (_core is null) return null;
+        try
+        {
+            var raw = await _core.ExecuteScriptAsync(PlayerAssets.TitleScript);
+            return JsonSerializer.Deserialize<string>(raw);
+        }
+        catch { return null; }
+    }
+
     public void Close()
     {
+        if (ReferenceEquals(s_current, this)) s_current = null;
         try { _controller?.Close(); } catch { }
         _controller = null; _core = null;
         if (Hwnd != IntPtr.Zero) { DestroyWindow(Hwnd); Hwnd = IntPtr.Zero; }
@@ -170,12 +213,24 @@ public sealed class Win32PlayerHost
     private const uint WS_EX_NOACTIVATE = 0x08000000, WS_EX_TOOLWINDOW = 0x00000080, WS_EX_TRANSPARENT = 0x00000020;
     private const int SW_SHOWNA = 8;
     private const int SM_CXSCREEN = 0, SM_CYSCREEN = 1;
+    private const uint WM_DISPLAYCHANGE = 0x007E;
     private static readonly IntPtr HWND_BOTTOM = new(1);
     private const uint SWP_NOSIZE = 0x1, SWP_NOMOVE = 0x2, SWP_NOACTIVATE = 0x10;
 
+    /// <summary>The live host (only one records at a time). The single static WndProc re-parks it on a display
+    /// change so a resolution shrink / monitor swap can't push the whole window off every screen (WGC would stop
+    /// getting frames).</summary>
+    private static Win32PlayerHost? s_current;
+
     private delegate IntPtr WndProcDelegate(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
-    private static readonly WndProcDelegate s_wndProc = (h, m, w, l) => DefWindowProc(h, m, w, l);
+    private static readonly WndProcDelegate s_wndProc = WndProc;
     private static bool s_registered;
+
+    private static IntPtr WndProc(IntPtr h, uint m, IntPtr w, IntPtr l)
+    {
+        if (m == WM_DISPLAYCHANGE && s_current is { } cur && cur.Hwnd == h) cur.RePark();
+        return DefWindowProc(h, m, w, l);
+    }
 
     private static void EnsureClass()
     {
@@ -219,4 +274,9 @@ public sealed class Win32PlayerHost
     [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
     [DllImport("user32.dll")] private static extern int GetSystemMetrics(int nIndex);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr GetModuleHandle(string? name);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
+    private delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdc, ref RECT rect, IntPtr data);
+    [DllImport("user32.dll")] private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorEnumProc proc, IntPtr data);
 }

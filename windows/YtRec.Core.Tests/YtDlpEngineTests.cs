@@ -140,6 +140,30 @@ public class YtDlpEngineTests
     }
 
     [Fact]
+    public async Task NonTerminalFailure_StopsAfterBound_NotForever()
+    {
+        // P3: probe fails with a non-terminal error (liveStatus stays "NA") and every strategy also fails
+        // non-terminally. Before the fix this polled forever ("素材尚未就緒…"); now it must give up bounded.
+        var dir = TempDir();
+        try
+        {
+            var downloadAttempts = 0;
+            var engine = new YtDlpEngine("yt-dlp", null, Factory(args =>
+            {
+                if (IsProbe(args)) return new ProcessResult(1, "ERROR: Unable to extract player response", false);
+                downloadAttempts++;
+                return new ProcessResult(1, "ERROR: Unable to download webpage", false); // non-terminal
+            }));
+            // pollSeconds: 0 → no real sleeping; if the loop were unbounded this test would hang.
+            var outcome = await engine.StartAsync("https://youtu.be/jNQXAC9IVRw", dir, 1080, pollSeconds: 0);
+            Assert.IsType<DownloadOutcome.TerminalFailure>(outcome);
+            Assert.True(downloadAttempts >= 3);            // it did try
+            Assert.True(downloadAttempts <= 20 * 3);       // but bounded (≤ 20 rounds × 3 strategies)
+        }
+        finally { Directory.Delete(dir, true); }
+    }
+
+    [Fact]
     public async Task CancelledToken_ReturnsCancelled()
     {
         var dir = TempDir();

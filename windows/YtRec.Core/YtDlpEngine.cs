@@ -92,6 +92,14 @@ public sealed class YtDlpEngine
         }
 
         // ── Multi-strategy attempts with smart polling ──
+        // Polling is meant for material that becomes available later: an upcoming or in-progress live stream,
+        // or a just-ended live whose VOD YouTube is still processing. For any OTHER status — above all "NA",
+        // which means the probe itself failed (a URL yt-dlp can't turn into a downloadable video) — repeated
+        // non-terminal failures mean a hopeless input, so we stop after a bound instead of showing
+        // "素材尚未就緒…" forever. 20 rounds ≈ 10 min at the default 30 s poll: long enough to ride out a
+        // transient network/processing hiccup, short enough that a bad input surfaces a clear error.
+        const int MaxRoundsWhenNotAwaitingLive = 20;
+        var awaitingLive = liveStatus is "is_live" or "is_upcoming" or "post_live" or "was_live";
         var order = YtDlpParse.StrategyOrder(liveStatus);
         var round = 0;
         while (!ct.IsCancellationRequested)
@@ -128,6 +136,12 @@ public sealed class YtDlpEngine
                 if (YtDlpParse.IsTerminalFailure(r.Output))
                     return new DownloadOutcome.TerminalFailure(YtDlpParse.FriendlyFailure(r.Output));
             }
+
+            // A whole round failed with no terminal signal. If we're not legitimately waiting on a live/VOD
+            // that will appear later, give up once bounded rather than poll forever on a hopeless input.
+            if (!awaitingLive && round >= MaxRoundsWhenNotAwaitingLive)
+                return new DownloadOutcome.TerminalFailure(
+                    "多次嘗試後仍無法下載，可能不是有效的 YouTube 影片網址，或內容暫時無法取得，請確認後再試。");
 
             // whole round failed → smart poll
             OnStatus?.Invoke($"素材尚未就緒，{pollSeconds} 秒後重試（已輪詢 {round} 輪）");

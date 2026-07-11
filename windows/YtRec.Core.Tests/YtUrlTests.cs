@@ -56,4 +56,18 @@ public class YtUrlTests
     {
         Assert.Equal("jNQXAC9IVRw", YtUrl.VideoId("  https://youtu.be/jNQXAC9IVRw \n"));
     }
+
+    // Security: a spoofed host (substring-bypass of the old host.Contains check) must not yield an id, or the
+    // raw attacker-controlled URL would be handed straight to yt-dlp (SSRF + hostile parse surface).
+    [Fact]
+    public void SpoofedHostIsRejected()
+    {
+        Assert.Null(YtUrl.VideoId("https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ"));
+        Assert.Null(YtUrl.VideoId("https://notyoutube.com/watch?v=dQw4w9WgXcQ"));
+        Assert.Null(YtUrl.VideoId("https://youtu.be.evil.com/dQw4w9WgXcQ"));
+        Assert.False(YtUrl.IsProbablyYouTube("https://youtube.com.evil.com/watch?v=dQw4w9WgXcQ"));
+        Assert.False(YtUrl.IsProbablyYouTube("https://notyoutube.com/"));
+        // Genuine subdomains still resolve.
+        Assert.Equal("dQw4w9WgXcQ", YtUrl.VideoId("https://gaming.youtube.com/watch?v=dQw4w9WgXcQ"));
+    }
 }

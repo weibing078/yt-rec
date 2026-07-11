@@ -12,6 +12,7 @@ internal static class WasapiConstants
 
     // HRESULTs / format
     public const int S_OK = 0;
+    public const int AUDCLNT_E_DEVICE_INVALIDATED = unchecked((int)0x88890004); // endpoint unplugged / default changed
     public const ushort WAVE_FORMAT_EXTENSIBLE = 0xFFFE;
     public const ushort WAVE_FORMAT_IEEE_FLOAT = 0x0003;
 
