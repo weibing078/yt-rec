@@ -1,9 +1,9 @@
 {
-  "version": "1.1.1",
-  "pubDate": "2026-06-22",
+  "version": "1.1.2",
+  "pubDate": "2026-07-11",
   "notes": {
-    "zh-Hant": "Windows 改用安裝程式：一鍵安裝、開始功能表捷徑、可從「設定 ▸ 應用程式」乾淨移除（不再是一堆散落的檔案）。預覽視窗也更順了。",
-    "en": "Windows now ships as an installer — one-click install, Start-menu shortcut, clean uninstall (no more scattered files). Smoother live preview, too."
+    "zh-Hant": "穩定性修復版：修復 31 個潛在問題——錄影收檔更可靠、磁碟不足保護、多螢幕支援、退出時不再殘留背景下載",
+    "en": "Stability release: 31 fixes — reliable finalize, low-disk guard, multi-monitor support, no orphaned downloads on quit"
   },
   "mac": {
     "url": "https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec.dmg",

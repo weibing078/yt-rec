@@ -7,7 +7,7 @@
 ; Compiled by windows/installer/build-installer.ps1, which passes AppVersion / PublishDir / OutputDir via /D.
 
 #ifndef AppVersion
-  #define AppVersion "1.1.1"
+  #define AppVersion "1.1.2"
 #endif
 #ifndef PublishDir
   #define PublishDir "..\YtRec.App\bin\x64\Release\net8.0-windows10.0.22621.0\win-x64\publish"
