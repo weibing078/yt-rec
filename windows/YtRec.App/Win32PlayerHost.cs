@@ -97,15 +97,12 @@ public sealed class Win32PlayerHost
                     VideoDims = (d[0].GetInt32(), d[1].GetInt32());
                 if (root.TryGetProperty("rect", out var r) && r.ValueKind == JsonValueKind.Array && r.GetArrayLength() == 4)
                     VideoRectFrac = (r[0].GetDouble(), r[1].GetDouble(), r[2].GetDouble(), r[3].GetDouble());
-                if (root.TryGetProperty("snap", out var snap) && snap.ValueKind == JsonValueKind.Object)
+                if (root.TryGetProperty("snap", out var snap))
                 {
-                    bool ended = snap.TryGetProperty("ended", out var en) && en.ValueKind == JsonValueKind.True;
-                    bool ad = snap.TryGetProperty("ad", out var adv) && adv.ValueKind == JsonValueKind.True;
-                    bool content = snap.TryGetProperty("content", out var ct) && ct.ValueKind == JsonValueKind.True;
-                    string id = snap.TryGetProperty("id", out var vid) && vid.ValueKind == JsonValueKind.String ? vid.GetString() ?? "" : "";
-                    AdShowing = ad;
-                    ContentReady = content;
-                    Snapshot?.Invoke(ended, ad, content, id);
+                    var parsed = StreamEndGate.ParseSnap(snap);
+                    AdShowing = parsed.Ad;
+                    ContentReady = parsed.Content;
+                    Snapshot?.Invoke(parsed.Ended, parsed.Ad, parsed.Content, parsed.Id);
                 }
             }
             catch { }

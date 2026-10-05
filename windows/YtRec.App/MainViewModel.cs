@@ -27,7 +27,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         StartCommand = new RelayCommand(async () => await StartAsync(), () => CanStart);
         RecordCommand = new RelayCommand(async () => await RecordAsync(), () => CanRecord);
         StopCommand = new RelayCommand(StopOrCancel, () => IsBusy || IsRecording || IsPreviewing);
-        BeginRecordCommand = new RelayCommand(BeginRecordFromHere, () => IsPreviewing && PreviewReady && !_previewShowsEnded);
+        BeginRecordCommand = new RelayCommand(BeginRecordFromHere, () => StreamEndGate.CanBeginFromPreview(IsPreviewing && PreviewReady, _previewShowsEnded, _previewShowsOther));
         CancelPreviewCommand = new RelayCommand(CancelPreview, () => IsPreviewing);
         RewindMinuteCommand = new RelayCommand(() => Nudge(+60), () => IsPreviewing);
         Rewind10sCommand = new RelayCommand(() => Nudge(+10), () => IsPreviewing);
@@ -117,6 +117,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private double _pendingBehind;
 
     private bool _previewShowsEnded;
+    private bool _previewShowsOther;
     private bool _previewReady;
     /// <summary>True once the player has loaded and the live preview is interactive (session up, frames flowing).
     /// 「從這裡開始錄影」 stays disabled until then so an early click can't no-op.</summary>
@@ -290,12 +291,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
             StatusText = reason;
             ResetRecordState();
         });
-        capture.PreviewEndedChanged += show => _ui.TryEnqueue(() =>
+        capture.PreviewGateChanged += (ended, other) => _ui.TryEnqueue(() =>
         {
             if (!ReferenceEquals(_capture, capture)) return;
-            if (_previewShowsEnded == show) return;
-            _previewShowsEnded = show;
-            BeginRecordCommand.RaiseCanExecuteChanged();
+            var changed = _previewShowsEnded != ended || _previewShowsOther != other;
+            _previewShowsEnded = ended;
+            _previewShowsOther = other;
+            if (changed) BeginRecordCommand.RaiseCanExecuteChanged();
         });
 
         JobTitle = "螢幕側錄";
@@ -320,7 +322,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void BeginRecordFromHere()
     {
         // 底層若已沒有監看（例如監看窗已拆掉），不可把主畫面切成「錄製中」。
-        if (_capture is null || !IsPreviewing || !PreviewReady || _previewShowsEnded || !_capture.BeginRecording())
+        if (_capture is null || !StreamEndGate.CanBeginFromPreview(IsPreviewing && PreviewReady, _previewShowsEnded, _previewShowsOther) || !_capture.BeginRecording())
         {
             if (!IsRecording)
             {
@@ -445,7 +447,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private void OnRecordFinished(string path)
     {
         StopGuardTimer();
-        StatusText = "完成";
+        var why = _capture?.AutoStopReason;
+        StatusText = string.IsNullOrEmpty(why) ? "完成" : $"完成（{why}）";
         if (File.Exists(path)) AddRecent(path, FileKind.Sidecar);
         ResetRecordState();
     }
@@ -465,6 +468,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IsPreviewing = false;
         PreviewReady = false;
         _previewShowsEnded = false;
+        _previewShowsOther = false;
         _settleTargetBehind = null;
         _dvrWindowSec = 0; _behindLiveSec = 0;
         Raise(nameof(ShowScrubber));

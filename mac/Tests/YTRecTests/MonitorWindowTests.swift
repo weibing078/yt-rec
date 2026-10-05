@@ -95,6 +95,25 @@ final class MessageAndBadgeTests: XCTestCase {
         XCTAssertNil(MonitorWindowController.parseDims("dims:abc"))      // 格式錯
         XCTAssertNil(MonitorWindowController.parseDims("playing"))       // 非 dims 前綴
     }
+    func testParseSnap() {
+        let ok = MonitorWindowController.parseSnap("snap:1,0,1,abc")
+        XCTAssertEqual(ok?.ended, true)
+        XCTAssertEqual(ok?.ad, false)
+        XCTAssertEqual(ok?.content, true)
+        XCTAssertEqual(ok?.id, "abc")
+        let empty = MonitorWindowController.parseSnap("snap:0,0,0,")
+        XCTAssertEqual(empty?.ended, false)
+        XCTAssertEqual(empty?.id, "")
+        let broken = MonitorWindowController.parseSnap("snap:yes,no")
+        XCTAssertEqual(broken?.ended, false)
+        XCTAssertEqual(broken?.ad, false)
+        XCTAssertEqual(broken?.content, false)
+        XCTAssertEqual(broken?.id, "")
+        let badBit = MonitorWindowController.parseSnap("snap:2,0,1,abc")
+        XCTAssertEqual(badBit?.ended, false)
+        XCTAssertEqual(badBit?.content, true)
+        XCTAssertNil(MonitorWindowController.parseSnap("playing"))
+    }
     func testBadgeText() {
         XCTAssertEqual(MonitorWindowController.badgeText(elapsed: nil), "● 準備中")  // 未落地不假裝計時
         XCTAssertEqual(MonitorWindowController.badgeText(elapsed: 0), "● 00:00")

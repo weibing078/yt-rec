@@ -24,13 +24,27 @@ final class AppState: ObservableObject {
     private var trackAEngine: YtDlpEngine?
     private var recorder: RecorderEngine?
     private let monitor = MonitorWindowController()
+    /// 這一場的快照狀態。開新的一場就換一個，不沿用上一場的 id／候選。
+    private final class SnapshotSession {
+        let jobId: UUID
+        let openedAt: TimeInterval
+        var anchorId: String
+        var latest: PlayerSnapshot?
+        var candidateStart: TimeInterval?
+        var extendedAdSeconds = 0
+        var otherVideoStreak = 0
+        var lastUi = ""
+        init(jobId: UUID, anchorId: String, openedAt: TimeInterval) {
+            self.jobId = jobId
+            self.anchorId = anchorId
+            self.openedAt = openedAt
+        }
+    }
     private var snapshotTimer: Timer?
-    private var snapshotJobId: UUID?
-    private var latestSnapshot: PlayerSnapshot?
-    private var candidateStart: Date?
-    private var extendedAdSeconds = 0
-    private var lastSnapshotUi = ""
+    private var snapshotSession: SnapshotSession?
+    private var autoStopDetail: String?
     @Published var previewShowsEnded = false
+    @Published var previewShowsOtherVideo = false
     private var lastDiskCheckSec: Double = 0     // 側錄中磁碟檢查節流（每 60 秒）
     private var stoppingTrackB = false           // 防重入：.finalizing 仍屬 isActive，收尾期間 onElapsed tick 可能再次觸發 stopTrackB
 
@@ -221,6 +235,7 @@ final class AppState: ObservableObject {
     func cancelPreview() {
         guard let j = job, isPositioning else { return }
         stopSnapshotTimer()
+        snapshotSession = nil
         let rec = recorder
         rec?.markStopping()        // 先標停止，關監看視窗時 SCK 才不會觸發假的「中斷」通知（修審查 #6）
         monitor.close()
@@ -407,11 +422,6 @@ final class AppState: ObservableObject {
                 await rec.updateOutputSize(target)
             }
         }
-        monitor.onSnapshot = { [weak self] ended, ad, content, id in
-            Task { @MainActor in
-                self?.latestSnapshot = PlayerSnapshot(ended: ended, ad: ad, content: content, id: id, receivedAt: Date())
-            }
-        }
         monitor.onPosition = { [weak j] behind, window in
             Task { @MainActor in
                 guard let j else { return }
@@ -472,6 +482,17 @@ final class AppState: ObservableObject {
             }
         }
 
+        snapshotSession = SnapshotSession(jobId: j.id, anchorId: j.videoID ?? "", openedAt: ProcessInfo.processInfo.systemUptime)
+        if previewShowsEnded { previewShowsEnded = false }
+        if previewShowsOtherVideo { previewShowsOtherVideo = false }
+        let session = snapshotSession
+        monitor.onSnapshot = { [weak self] ended, ad, content, id in
+            let at = ProcessInfo.processInfo.systemUptime
+            Task { @MainActor in
+                guard let self, let current = self.snapshotSession, current === session, at >= current.openedAt else { return }
+                current.latest = PlayerSnapshot(ended: ended, ad: ad, content: content, id: id, receivedAt: at)
+            }
+        }
         monitor.load(urlString: j.url, size: size,
                      alwaysOnTop: Settings.monitorAlwaysOnTop, autoShow: Settings.monitorAutoShow)
         monitorShown = monitor.isShown
@@ -510,6 +531,7 @@ final class AppState: ObservableObject {
 
     func stopTrackB(reason: StopReason) async {
         stopSnapshotTimer()
+        snapshotSession = nil
         guard !stoppingTrackB else { return }   // 收尾中（.finalizing）期間擋掉重入的 tick，避免對同一 recorder 重複 stop
         guard let j = job, let rec = recorder, j.trackB.isActive else { return }
         stoppingTrackB = true
@@ -539,9 +561,13 @@ final class AppState: ObservableObject {
             if let result {
                 j.trackB = .finished(result)
                 addHistory(result, kind: .sidecar, title: j.title)
-                if let note = Self.stopNotification(reason: reason, fileName: result.lastPathComponent) {
+                if var note = Self.stopNotification(reason: reason, fileName: result.lastPathComponent) {
+                    if reason == .playerEnded, let extra = autoStopDetail, !extra.isEmpty {
+                        note.body = "\(note.body)。\(extra)"
+                    }
                     Notify.post(title: note.title, body: note.body)
                 }
+                autoStopDetail = nil
             } else {
                 j.trackB = .failed("側錄沒有產出內容")
             }
@@ -556,8 +582,7 @@ final class AppState: ObservableObject {
     }
 
     private func finalizeRecorderFile(_ j: JobViewModel) async {
-        // 錯誤收尾也要清掉 20 秒收工，否則旗標留著，下一場的 ended 會被吃掉。
-        stopSnapshotTimer()
+        stopSnapshotTimer() // 收尾前先停計時器，晚到的快照不再評估
         // SCK 中斷等致命錯誤時盡力保檔
         guard let rec = recorder else { return }
         let finalURL = j.jobDir.appendingPathComponent("側錄_\(FileUtil.sanitize(j.title))_中斷保存.mp4")
@@ -713,61 +738,60 @@ final class AppState: ObservableObject {
 
     private func startSnapshotTimer(for job: JobViewModel) {
         stopSnapshotTimer()
-        snapshotJobId = job.id
         let jobId = job.id
-        snapshotTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.onSnapshotTick(jobId: jobId) }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        snapshotTimer = timer
     }
 
     private func stopSnapshotTimer() {
         snapshotTimer?.invalidate()
         snapshotTimer = nil
-        snapshotJobId = nil
     }
 
     /// 計時器回呼：第一行確認還是這一場、而且還在預覽或錄製，否則停掉自己。
     private func onSnapshotTick(jobId: UUID) {
-        guard job?.id == jobId, isPreviewing || isRecording else {
+        guard snapshotSession?.jobId == jobId, job?.id == jobId else { return }
+        guard isPreviewing || isRecording else {
             stopSnapshotTimer()
             return
         }
-        guard let j = job else { stopSnapshotTimer(); return }
+        guard let session = snapshotSession else { return }
         let phase: StreamPhase = isRecording ? .recording : .preview
-        let decision = StreamEnd.evaluate(phase: phase, anchorId: j.videoID ?? "", snapshot: latestSnapshot,
-                                          candidateStart: candidateStart, extendedAdSeconds: extendedAdSeconds, now: Date())
-        candidateStart = decision.candidateStart
-        extendedAdSeconds = decision.extendedAdSeconds
-        let mode = decision.stopReason ?? (decision.countdownSeconds != nil ? "countdown" : (decision.previewShowsEnded ? "preview-ended" : "idle"))
-        if mode != lastSnapshotUi {
-            lastSnapshotUi = mode
+        let now = ProcessInfo.processInfo.systemUptime
+        let decision = StreamEnd.evaluate(phase: phase, anchorId: session.anchorId, snapshot: session.latest,
+                                          candidateStart: session.candidateStart, extendedAdSeconds: session.extendedAdSeconds,
+                                          otherVideoStreak: session.otherVideoStreak, now: now)
+        session.anchorId = decision.anchorId
+        session.candidateStart = decision.candidateStart
+        session.extendedAdSeconds = decision.extendedAdSeconds
+        session.otherVideoStreak = decision.otherVideoStreak
+        let mode = decision.stopReason ?? (decision.countdownSeconds != nil ? "countdown" : (decision.previewShowsOtherVideo ? "other" : (decision.previewShowsEnded ? "preview-ended" : "idle")))
+        if mode != session.lastUi {
+            session.lastUi = mode
             Log.info("job", "播放器快照 \(mode)")
         }
-        if decision.leaveUiAlone { return }
         if let reason = decision.stopReason {
             stopSnapshotTimer()
-            j.infoMessage = reason
-            previewShowsEnded = false
+            autoStopDetail = reason
+            if previewShowsEnded { previewShowsEnded = false }
+            if previewShowsOtherVideo { previewShowsOtherVideo = false }
             monitor.setStatusOverlay(nil)
             Task { await self.stopTrackB(reason: .playerEnded) }
             return
         }
-        previewShowsEnded = decision.previewShowsEnded
+        if previewShowsEnded != decision.previewShowsEnded { previewShowsEnded = decision.previewShowsEnded }
+        if previewShowsOtherVideo != decision.previewShowsOtherVideo { previewShowsOtherVideo = decision.previewShowsOtherVideo }
         if let seconds = decision.countdownSeconds {
-            let text = "影片即將結束，\(seconds) 秒後收工"
-            j.infoMessage = text
-            monitor.setStatusOverlay(text)
+            monitor.setStatusOverlay("影片即將結束，\(seconds) 秒後收工")
+        } else if decision.previewShowsOtherVideo {
+            monitor.setStatusOverlay("播放器已換成別支影片")
         } else if decision.previewShowsEnded {
-            j.infoMessage = "影片已結束"
             monitor.setStatusOverlay("影片已結束")
         } else {
             monitor.setStatusOverlay(nil)
-            let msg = j.infoMessage ?? ""
-            if isRecording && (msg.contains("秒後收工") || msg == "影片已結束") {
-                j.infoMessage = nil
-            } else if isPreviewing && msg == "影片已結束" {
-                j.infoMessage = "倒帶到要的點，再按「從這裡開始錄影」。"
-            }
         }
     }
 }

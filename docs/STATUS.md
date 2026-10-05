@@ -3,6 +3,12 @@
 > Updated: 2026-06-22. Living doc — the place to pick up from. Per-feature detail lives
 > in [shared/spec/parity-matrix.md](../shared/spec/parity-matrix.md).
 
+## Known limits (2026-10-05, not fixed this round)
+- 同一支影片的 id 從頭重播，會被當成還是這一支，錄影繼續，不會收工。
+- Windows 如果完全沒收到播放器快照，不會因為「結束」而自動收工（改之前也是這樣）。
+- Windows 收尾剛完成的瞬間再按停止，有一小段競態。
+- Windows App 沒有自己的 log 設施。
+
 ## One line
 **Launch-ready: the Windows app is a polished, no-install product — full GUI flow verified on real Win11.**
 Paste URL → click **側錄** → opens a live **preview** (no file yet); for a live stream a **DVR rewind

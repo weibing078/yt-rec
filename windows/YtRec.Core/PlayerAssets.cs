@@ -46,7 +46,8 @@ public static class PlayerAssets
     /// watch page to THEATER mode to make that inline player as large as possible (toward 1080p), forces
     /// playback + unmute and pins <c>hd1080</c>, and reports: the source pixel dims (<c>dims:[w,h]</c> →
     /// landscape/portrait output), the video element's rect as window fractions (<c>rect:[x,y,w,h]</c> → the
-    /// host crops to the video only, dropping page chrome) and stream end (<c>state:'ended'</c>).</summary>
+    /// host crops to the video only, dropping page chrome) and a once-a-second player snapshot
+    /// (<c>snap:{ended,ad,content,id}</c>).</summary>
     public const string FillPlayAndReportScript = """
         (function () {
           function post(o) { try { window.chrome.webview.postMessage(o); } catch (e) {} }

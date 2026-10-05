@@ -18,8 +18,11 @@ public sealed class CaptureController
     public event Action<string>? Warning;     // non-fatal (recording continues) — e.g. audio device changed
     /// <summary>Preview was torn down with no file (monitor stop). The main window must leave "錄製中".</summary>
     public event Action<string>? PreviewDismissed;
-    /// <summary>Latest "影片已結束" from the once-a-second snapshot. Not sticky: the next snapshot can clear it.</summary>
-    public event Action<bool>? PreviewEndedChanged;
+    /// <summary>Latest preview gate from the snapshot: showsEnded, showsOtherVideo. Recomputed every second.</summary>
+    public event Action<bool, bool>? PreviewGateChanged;
+
+    /// <summary>Set only when the snapshot table stops the recording. User stop leaves this null.</summary>
+    public string? AutoStopReason { get; private set; }
 
     public const string PreviewDismissedReason = "已取消監看，沒有開始錄影。";
 
@@ -37,11 +40,14 @@ public sealed class CaptureController
     private bool _stopping;
     private DispatcherQueueTimer? _snapTimer;
     private PlayerSnapshot? _latestSnap;
-    private DateTime? _candidateStart;
+    private TimeSpan? _candidateStart;
     private int _extendedAdSeconds;
     private string _anchorId = "";
+    private int _otherVideoStreak;
     private string _lastSnapshotUi = "";
     private bool _snapshotStopping;
+    private bool _lastPreviewEnded;
+    private bool _lastPreviewOther;
     private bool _audioDeviceLost; // Win10 loopback endpoint invalidated mid-record → finalize must keep full video
     private string? _faultMessage; // cause of a capture-callback fault, preferred over the reassembler's error
 
@@ -154,8 +160,8 @@ public sealed class CaptureController
             // (that used to leave the main window showing 「錄製中」 with no session underneath).
             _player.Snapshot += (ended, ad, content, id) =>
             {
-                var snap = new PlayerSnapshot(ended, ad, content, id ?? "", DateTime.UtcNow);
-                _ui.TryEnqueue(() => _latestSnap = snap);
+            var snap = new PlayerSnapshot(ended, ad, content, id ?? "", TimeSpan.FromMilliseconds(Environment.TickCount64));
+            _ui.TryEnqueue(() => _latestSnap = snap);
             };
 
             await RecordingSession.RequestBorderlessAsync(); // drop the yellow WGC border before capture
@@ -222,26 +228,32 @@ public sealed class CaptureController
             return;
         }
         var phase = IsRecording ? StreamPhase.Recording : StreamPhase.Preview;
-        var decision = StreamEndGate.Evaluate(phase, _anchorId, _latestSnap, _candidateStart, _extendedAdSeconds, DateTime.UtcNow);
+        var now = TimeSpan.FromMilliseconds(Environment.TickCount64);
+        var decision = StreamEndGate.Evaluate(phase, _anchorId, _latestSnap, _candidateStart, _extendedAdSeconds, _otherVideoStreak, now);
+        _anchorId = decision.AnchorId;
         _candidateStart = decision.CandidateStart;
         _extendedAdSeconds = decision.ExtendedAdSeconds;
-        if (decision.LeaveUiAlone) return;
+        _otherVideoStreak = decision.OtherVideoStreak;
         if (decision.StopReason is { } why)
         {
             if (_snapshotStopping) return;
             _snapshotStopping = true;
+            AutoStopReason = why;
             StopSnapshotTimer();
             ShowSnapshotStatus(why, why);
             _ = StopAsync();
             return;
         }
-        if (decision.PreviewShowsEnded != _lastPreviewEnded)
+        if (decision.PreviewShowsEnded != _lastPreviewEnded || decision.PreviewShowsOtherVideo != _lastPreviewOther)
         {
             _lastPreviewEnded = decision.PreviewShowsEnded;
-            PreviewEndedChanged?.Invoke(decision.PreviewShowsEnded);
+            _lastPreviewOther = decision.PreviewShowsOtherVideo;
+            PreviewGateChanged?.Invoke(decision.PreviewShowsEnded, decision.PreviewShowsOtherVideo);
         }
         if (decision.CountdownSeconds is int sec)
             ShowSnapshotStatus($"影片即將結束，{sec} 秒後收工", $"影片即將結束，{sec} 秒後收工");
+        else if (decision.PreviewShowsOtherVideo)
+            ShowSnapshotStatus("播放器已換成別支影片", "播放器已換成別支影片");
         else if (decision.PreviewShowsEnded)
             ShowSnapshotStatus("影片已結束", "影片已結束");
         else if (IsRecording)
@@ -249,8 +261,6 @@ public sealed class CaptureController
         else
             ShowSnapshotStatus("預覽中", "預覽中 · 倒帶到要開始錄的時間點");
     }
-
-    private bool _lastPreviewEnded;
 
     /// <summary>Updates the main window and the monitor only when the text actually changes.</summary>
     private void ShowSnapshotStatus(string main, string monitor)

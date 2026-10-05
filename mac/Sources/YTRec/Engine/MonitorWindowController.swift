@@ -24,7 +24,6 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
     private var badgeLabel: NSTextField?
     private var statusOverlay: String?
 
-    var onPlayerEvent: ((String) -> Void)?   // error 等既有事件
     var onSnapshot: ((Bool, Bool, Bool, String) -> Void)?   // ended, ad, content, id
     var onTitle: ((String) -> Void)?
     var onDims: ((Int, Int) -> Void)?        // 來源影片像素尺寸（videoWidth, videoHeight）→ 判斷直/橫式
@@ -108,12 +107,14 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
         return (nil, body)
     }
 
-    /// `snap:ended,ad,content,id`，三個旗標是 1 或 0，id 可為空。
+    /// `snap:ended,ad,content,id`。不是快照回 nil。欄位缺、不是 1/0、整則壞掉 → 三個旗標 false、id 空，
+    /// 不會被當成「換了影片」或「正片在播」。
     nonisolated static func parseSnap(_ body: String) -> (ended: Bool, ad: Bool, content: Bool, id: String)? {
         guard body.hasPrefix("snap:") else { return nil }
         let parts = body.dropFirst(5).split(separator: ",", maxSplits: 3, omittingEmptySubsequences: false)
-        guard parts.count == 4 else { return nil }
-        return (parts[0] == "1", parts[1] == "1", parts[2] == "1", String(parts[3]))
+        guard parts.count == 4 else { return (false, false, false, "") }
+        func bit(_ s: Substring) -> Bool { s == "1" }
+        return (bit(parts[0]), bit(parts[1]), bit(parts[2]), String(parts[3]))
     }
 
     /// 解析影片尺寸回報 `dims:WxH`。前綴不符／欄位非正整數→nil。
@@ -406,12 +407,19 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
     }
 
     /// 更新小窗上的錄製時長。
+    private var lastElapsed: Double?
+
     func setStatusOverlay(_ text: String?) {
         statusOverlay = text
-        if let text { badgeLabel?.stringValue = text }
+        if let text {
+            badgeLabel?.stringValue = text
+        } else {
+            badgeLabel?.stringValue = Self.badgeText(elapsed: lastElapsed)
+        }
     }
 
     func updateElapsed(_ seconds: Double) {
+        lastElapsed = seconds
         guard statusOverlay == nil else { return }
         badgeLabel?.stringValue = Self.badgeText(elapsed: seconds)
     }
@@ -454,7 +462,6 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
             onTitle?(title)
         } else if let event = m.event {
             Log.info("monitor", "播放器事件：\(event)")
-            onPlayerEvent?(event)
         }
     }
 
