@@ -86,10 +86,28 @@ final class EndedStopScheduleTests: XCTestCase {
     func testIgnoresOtherEvents() {
         XCTAssertFalse(AppState.shouldScheduleEndedStop(event: "playing", recordingToFile: true, alreadyScheduled: false))
     }
-    func testPlaybackResumeCancelsPendingStop() {
-        XCTAssertEqual(AppState.streamEndAction(event: "ready", recordingToFile: true, alreadyScheduled: true), .cancelScheduledStop)
-        XCTAssertEqual(AppState.streamEndAction(event: "playing", recordingToFile: true, alreadyScheduled: true), .cancelScheduledStop)
-        XCTAssertEqual(AppState.streamEndAction(event: "ready", recordingToFile: true, alreadyScheduled: false), .ignore)
+    func testSameVideoAndReadyCancelsStop() {
+        XCTAssertEqual(AppState.streamEndAction(event: "ready", recordingToFile: true, alreadyScheduled: true,
+                                                scheduledVideoId: "abc", signalVideoId: "abc", contentReady: true),
+                       .cancelScheduledStop)
+    }
+    func testDifferentVideoStopsImmediately() {
+        XCTAssertEqual(AppState.streamEndAction(event: "videoid", recordingToFile: true, alreadyScheduled: true,
+                                                scheduledVideoId: "abc", signalVideoId: "xyz", contentReady: false),
+                       .stopNow)
+        XCTAssertEqual(AppState.streamEndAction(event: "ready", recordingToFile: true, alreadyScheduled: true,
+                                                scheduledVideoId: "abc", signalVideoId: "xyz", contentReady: true),
+                       .stopNow)
+    }
+    func testAdReadyDoesNotCancel() {
+        XCTAssertEqual(AppState.streamEndAction(event: "ready", recordingToFile: true, alreadyScheduled: true,
+                                                scheduledVideoId: "abc", signalVideoId: "abc", contentReady: false),
+                       .ignore)
+    }
+    func testPlayingDoesNotCancel() {
+        XCTAssertEqual(AppState.streamEndAction(event: "playing", recordingToFile: true, alreadyScheduled: true,
+                                                scheduledVideoId: "abc", signalVideoId: "abc", contentReady: true),
+                       .ignore)
     }
     func testCommitOnlyForTheSameJobStillRecording() {
         XCTAssertTrue(AppState.shouldCommitPlayerEndedStop(sameJob: true, recordingToFile: true))

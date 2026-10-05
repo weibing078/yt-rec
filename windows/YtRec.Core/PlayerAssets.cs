@@ -76,6 +76,13 @@ public static class PlayerAssets
             var p = player();
             return !!(p && p.classList && (p.classList.contains('ad-showing') || p.classList.contains('ad-interrupting')));
           }
+          function currentVideoId() {
+            try {
+              var pl = player();
+              var d = pl && pl.getVideoData && pl.getVideoData();
+              return (d && d.video_id) || '';
+            } catch (e) { return ''; }
+          }
           // Auto-skip any skippable ad the instant a skip control is offered (class names vary across rollouts).
           function trySkipAd() {
             try {
@@ -118,17 +125,19 @@ public static class PlayerAssets
                 if (!v.__ytrecHooked) {
                   v.__ytrecHooked = true;
                   // Ad and content share one <video>. An ad's end must not look like the stream ended.
-                  v.addEventListener('ended', function () { if (!adShowing()) post({ type: 'ytrec', state: 'ended' }); });
+                  v.addEventListener('ended', function () { if (!adShowing()) post({ type: 'ytrec', state: 'ended', videoId: currentVideoId() }); });
                 }
               }
-              // Recording must start on REAL content, never an ad: report both so the host can gate the writer.
-              var ready = !!(v && !ad && !v.paused && v.currentTime > 0 && v.readyState >= 3 && v.videoWidth > 0);
-              post({ type: 'ytrec', ad: ad, ready: ready });
+              // Player state 0 means this video has ended. Don't also report ready in that same tick,
+              // or the host would cancel the stop and then schedule it again every second.
+              var endedState = !!(p && p.getPlayerState && p.getPlayerState() === 0);
+              var ready = !!(v && !ad && !endedState && !v.paused && v.currentTime > 0 && v.readyState >= 3 && v.videoWidth > 0);
+              post({ type: 'ytrec', ad: ad, ready: ready, videoId: currentVideoId() });
               if (p) {
                 if (!ad && p.unMute) p.unMute();
                 if (!ad && p.setPlaybackQualityRange) p.setPlaybackQualityRange('hd1080', 'hd1080'); // pin 1080p
-                // 0=ENDED. Don't report it during an ad, and the host treats it as a 20s candidate, not an instant stop.
-                if (p.getPlayerState && p.getPlayerState() === 0 && !adShowing()) post({ type: 'ytrec', state: 'ended' });
+                // 0=ENDED. Don't report it during an ad. The host treats it as a 20s candidate.
+                if (endedState && !adShowing()) post({ type: 'ytrec', state: 'ended', videoId: currentVideoId() });
               }
               ensureTheater();
             } catch (e) {}

@@ -486,9 +486,22 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
       var sentTitle = false;
       var sentDims = '';
       var sawEnded = false;
+      var lastVid = '';
       function lcfAdShowing() {
         var node = document.getElementById('movie_player');
         return !!(node && node.classList && (node.classList.contains('ad-showing') || node.classList.contains('ad-interrupting')));
+      }
+      function lcfVideoId() {
+        try {
+          var p = document.getElementById('movie_player');
+          var d = p && p.getVideoData && p.getVideoData();
+          return (d && d.video_id) || '';
+        } catch (e) { return ''; }
+      }
+      function lcfPostEnded() {
+        if (lcfAdShowing()) return;
+        sawEnded = true;
+        window.webkit.messageHandlers.lcf.postMessage('ended:' + lcfVideoId());
       }
       var tick = function () {
         try {
@@ -522,21 +535,26 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
               if (mp.setSize) { try { mp.setSize(window.innerWidth, window.innerHeight); } catch (e) {} }
             }
             try { window.dispatchEvent(new Event('resize')); } catch (e) {}
-            // 假結束之後正片還在播：只回報一次 ready，讓原生端取消 20 秒收工。真的結束（暫停／ended）不回報。
-            var contentReady = !v.paused && v.currentTime > 0 && v.readyState >= 3 && v.videoWidth > 0;
-            if (sawEnded && contentReady) {
-              sawEnded = false;
-              window.webkit.messageHandlers.lcf.postMessage('ready');
-            }
+          }
+          if (v.ended) lcfPostEnded();
+          var vid = lcfVideoId();
+          if (vid && vid !== lastVid) {
+            lastVid = vid;
+            window.webkit.messageHandlers.lcf.postMessage('videoid:' + vid);
+          }
+          // 假結束之後同一支正片還在播才回報 ready。v.ended 時不回報，避免把真的結束取消掉。
+          var contentReady = !ad && !v.ended && !v.paused && v.currentTime > 0 && v.readyState >= 3 && v.videoWidth > 0;
+          if (sawEnded && contentReady) {
+            sawEnded = false;
+            window.webkit.messageHandlers.lcf.postMessage('ready:' + lcfVideoId());
           }
           if (!v.__lcfHooked) {
             v.__lcfHooked = true;
-            v.addEventListener('playing', function () { window.webkit.messageHandlers.lcf.postMessage('playing'); });
-            v.addEventListener('ended', function () {
+            v.addEventListener('playing', function () {
               if (lcfAdShowing()) return;
-              sawEnded = true;
-              window.webkit.messageHandlers.lcf.postMessage('ended');
+              window.webkit.messageHandlers.lcf.postMessage('playing');
             });
+            v.addEventListener('ended', function () { lcfPostEnded(); });
             v.addEventListener('error', function () { window.webkit.messageHandlers.lcf.postMessage('error'); });
           }
         } catch (e) {}

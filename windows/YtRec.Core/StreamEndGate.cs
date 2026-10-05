@@ -8,20 +8,46 @@ public enum StreamEndAction
     Ignore,
     ScheduleStop,
     CancelScheduledStop,
+    StopNow,
+    NotePreviewEnded,
 }
 
 public static class StreamEndGate
 {
-    /// <summary>20 秒候選：只有「正在寫檔、且尚未排程」才排程。預覽中的 ended 不拆監看。</summary>
-    public static StreamEndAction OnEnded(bool isRecording, bool alreadyScheduled)
+    /// <summary>20 秒候選：只有「正在寫檔、且尚未排程」才排程。預覽中的 ended 不拆監看，
+    /// 但第一次要標成影片已結束（按鈕不能按）。</summary>
+    public static StreamEndAction OnEnded(bool isRecording, bool alreadyScheduled, bool previewAlreadyNoted)
     {
-        if (!isRecording || alreadyScheduled) return StreamEndAction.Ignore;
+        if (!isRecording)
+            return previewAlreadyNoted ? StreamEndAction.Ignore : StreamEndAction.NotePreviewEnded;
+        if (alreadyScheduled) return StreamEndAction.Ignore;
         return StreamEndAction.ScheduleStop;
     }
 
-    /// <summary>正片恢復（ready）就取消尚未執行的收工。沒在等，或其實還不是正片，就不動。</summary>
-    public static StreamEndAction OnContentReady(bool contentReady, bool alreadyScheduled)
-        => contentReady && alreadyScheduled ? StreamEndAction.CancelScheduledStop : StreamEndAction.Ignore;
+    /// <summary>已排程的收工：換成別的 videoId 就立刻收工；同一支且正片在播（非廣告）才取消。
+    /// 沒排程、或 id 還讀不到，不動。</summary>
+    public static StreamEndAction OnPlayback(
+        bool alreadyScheduled,
+        bool contentReady,
+        bool isAd,
+        string? scheduledVideoId,
+        string? signalVideoId)
+    {
+        if (!alreadyScheduled) return StreamEndAction.Ignore;
+        if (VideoIdsDiffer(scheduledVideoId, signalVideoId)) return StreamEndAction.StopNow;
+        if (!isAd && contentReady && VideoIdsMatch(scheduledVideoId, signalVideoId))
+            return StreamEndAction.CancelScheduledStop;
+        return StreamEndAction.Ignore;
+    }
+
+    public static bool VideoIdsDiffer(string? scheduled, string? current)
+        => !string.IsNullOrEmpty(scheduled)
+           && !string.IsNullOrEmpty(current)
+           && !string.Equals(scheduled, current, StringComparison.Ordinal);
+
+    public static bool VideoIdsMatch(string? scheduled, string? current)
+        => !string.IsNullOrEmpty(scheduled)
+           && string.Equals(scheduled, current, StringComparison.Ordinal);
 
     /// <summary>底層還有預覽工作才算開始錄影成功。沒有工作時呼叫端要提示，不能假裝已在錄。</summary>
     public static bool BeginRecordingSucceeds(bool hasSession, bool isPreviewing, bool isRecording)

@@ -26,6 +26,7 @@ final class AppState: ObservableObject {
     private let monitor = MonitorWindowController()
     private var playerEndedStopScheduled = false
     private var playerEndedStopTask: Task<Void, Never>?
+    private var endedStopVideoId: String?
     private var lastDiskCheckSec: Double = 0     // 側錄中磁碟檢查節流（每 60 秒）
     private var stoppingTrackB = false           // 防重入：.finalizing 仍屬 isActive，收尾期間 onElapsed tick 可能再次觸發 stopTrackB
 
@@ -139,20 +140,52 @@ final class AppState: ObservableObject {
         elapsedSec - lastCheckSec >= 60
     }
 
-    enum StreamEndAction: Equatable { case ignore, scheduleStop, cancelScheduledStop }
+    enum StreamEndAction: Equatable { case ignore, scheduleStop, cancelScheduledStop, stopNow }
 
-    /// 播放器訊號怎麼處理。ended 只有「正在寫檔、且尚未排程」才排 20 秒收工；
-    /// playing／ready 代表正片還在，取消那個收工。預覽中的 ended 不排程。
-    nonisolated static func streamEndAction(event: String, recordingToFile: Bool, alreadyScheduled: Bool) -> StreamEndAction {
-        switch event {
-        case "playing", "ready":
-            return alreadyScheduled ? .cancelScheduledStop : .ignore
-        case "ended":
+    struct PlayerSignal: Equatable {
+        var kind: String
+        var videoId: String?
+        /// `ready:<id>`／`ended:<id>`／`videoid:<id>`；其他字串整段當事件、沒有 id。
+        static func parse(_ event: String) -> PlayerSignal {
+            for prefix in ["ready:", "ended:", "videoid:"] where event.hasPrefix(prefix) {
+                let id = String(event.dropFirst(prefix.count))
+                let kind = prefix == "videoid:" ? "videoid" : String(prefix.dropLast())
+                return PlayerSignal(kind: kind, videoId: id.isEmpty ? nil : id)
+            }
+            return PlayerSignal(kind: event, videoId: nil)
+        }
+    }
+
+    /// 播放器訊號怎麼處理。ended 只有「正在寫檔、且尚未排程」才排 20 秒收工。
+    /// 已排程時：videoId 變了立刻收工；同一支且 ready（正片、非廣告）才取消。playing 不取消。
+    nonisolated static func streamEndAction(
+        event: String,
+        recordingToFile: Bool,
+        alreadyScheduled: Bool,
+        scheduledVideoId: String? = nil,
+        signalVideoId: String? = nil,
+        contentReady: Bool = false
+    ) -> StreamEndAction {
+        if event == "ended" {
             if recordingToFile && !alreadyScheduled { return .scheduleStop }
             return .ignore
-        default:
-            return .ignore
         }
+        guard alreadyScheduled else { return .ignore }
+        if videoIdsDiffer(scheduledVideoId, signalVideoId) { return .stopNow }
+        if event == "ready", contentReady, videoIdsMatch(scheduledVideoId, signalVideoId) {
+            return .cancelScheduledStop
+        }
+        return .ignore
+    }
+
+    nonisolated static func videoIdsDiffer(_ scheduled: String?, _ current: String?) -> Bool {
+        guard let scheduled, let current, !scheduled.isEmpty, !current.isEmpty else { return false }
+        return scheduled != current
+    }
+
+    nonisolated static func videoIdsMatch(_ scheduled: String?, _ current: String?) -> Bool {
+        guard let scheduled, !scheduled.isEmpty else { return false }
+        return scheduled == current
     }
 
     /// 播放器回報事件時是否該排程「20 秒後自動收工」。
@@ -431,14 +464,22 @@ final class AppState: ObservableObject {
         monitor.onPlayerEvent = { [weak self, weak j] event in
             Task { @MainActor in
                 guard let self, let j else { return }
-                switch Self.streamEndAction(event: event,
+                let signal = PlayerSignal.parse(event)
+                switch Self.streamEndAction(event: signal.kind,
                                              recordingToFile: j.trackB.isRecordingToFile,
-                                             alreadyScheduled: self.playerEndedStopScheduled) {
+                                             alreadyScheduled: self.playerEndedStopScheduled,
+                                             scheduledVideoId: self.endedStopVideoId,
+                                             signalVideoId: signal.videoId,
+                                             contentReady: signal.kind == "ready") {
                 case .cancelScheduledStop:
                     self.cancelPlayerEndedStop()
                     j.infoMessage = "播放已恢復，繼續錄影。"
+                case .stopNow:
+                    Log.info("job", "播放器換成另一支影片，立刻收工")
+                    Task { await self.stopTrackB(reason: .playerEnded) }
                 case .scheduleStop:
                     self.playerEndedStopScheduled = true
+                    self.endedStopVideoId = signal.videoId
                     j.infoMessage = "直播畫面已結束，20 秒後自動收工側錄。"
                     Log.info("job", "播放器回報 ended，20 秒後自動停止側錄")
                     let scheduledJob = j
@@ -756,6 +797,7 @@ final class AppState: ObservableObject {
         playerEndedStopTask?.cancel()
         playerEndedStopTask = nil
         playerEndedStopScheduled = false
+        endedStopVideoId = nil
     }
 
     private func commitPlayerEndedStop(for scheduledJob: JobViewModel) async {
@@ -769,6 +811,8 @@ final class AppState: ObservableObject {
             }
             return
         }
+        // 先卸下 handle，stopTrackB 開頭的 cancel 才不會取消「正在跑的自己」。
+        playerEndedStopTask = nil
         await stopTrackB(reason: .playerEnded)
     }
 }

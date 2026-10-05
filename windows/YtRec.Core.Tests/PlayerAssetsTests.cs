@@ -47,8 +47,10 @@ public class PlayerAssetsTests
         Assert.Contains("ytp-ad-skip-button", s);    // auto-clicks the skip control
         Assert.Contains("ad: ad", s);                // reports ad state to the host
         Assert.Contains("ready: ready", s);          // reports content-ready so the host gates the writer
-        Assert.Contains("if (!adShowing()) post({ type: 'ytrec', state: 'ended' });", s);
-        Assert.Contains("getPlayerState() === 0 && !adShowing()", s);
+        Assert.Contains("if (!adShowing()) post({ type: 'ytrec', state: 'ended', videoId: currentVideoId() });", s);
+        Assert.Contains("endedState && !adShowing()", s);
+        Assert.Contains("!endedState && !v.paused", s);
+        Assert.Contains("videoId: currentVideoId()", s);
     }
 
     [Fact]

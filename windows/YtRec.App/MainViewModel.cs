@@ -27,7 +27,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         StartCommand = new RelayCommand(async () => await StartAsync(), () => CanStart);
         RecordCommand = new RelayCommand(async () => await RecordAsync(), () => CanRecord);
         StopCommand = new RelayCommand(StopOrCancel, () => IsBusy || IsRecording || IsPreviewing);
-        BeginRecordCommand = new RelayCommand(BeginRecordFromHere, () => IsPreviewing && PreviewReady);
+        BeginRecordCommand = new RelayCommand(BeginRecordFromHere, () => IsPreviewing && PreviewReady && !_previewClipEnded);
         CancelPreviewCommand = new RelayCommand(CancelPreview, () => IsPreviewing);
         RewindMinuteCommand = new RelayCommand(() => Nudge(+60), () => IsPreviewing);
         Rewind10sCommand = new RelayCommand(() => Nudge(+10), () => IsPreviewing);
@@ -116,6 +116,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
     private DispatcherQueueTimer? _seekDebounce;
     private double _pendingBehind;
 
+    private bool _previewClipEnded;
     private bool _previewReady;
     /// <summary>True once the player has loaded and the live preview is interactive (session up, frames flowing).
     /// 「從這裡開始錄影」 stays disabled until then so an early click can't no-op.</summary>
@@ -277,15 +278,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var jobDir = OutputPaths.NewTaskFolder(UrlText);
         Directory.CreateDirectory(jobDir);
 
-        _capture = new CaptureController(ffmpeg);
-        _capture.Status += t => _ui.TryEnqueue(() => StatusText = t);
-        _capture.Finished += path => _ui.TryEnqueue(() => OnRecordFinished(path));
-        _capture.Failed += msg => _ui.TryEnqueue(() => OnRecordFailed(msg));
-        _capture.Warning += msg => _ui.TryEnqueue(() => AudioNotice = msg); // non-fatal (e.g. audio device changed)
-        _capture.PreviewDismissed += reason => _ui.TryEnqueue(() =>
+        var capture = new CaptureController(ffmpeg);
+        _capture = capture;
+        capture.Status += t => _ui.TryEnqueue(() => { if (!ReferenceEquals(_capture, capture)) return; StatusText = t; });
+        capture.Finished += path => _ui.TryEnqueue(() => { if (!ReferenceEquals(_capture, capture)) return; OnRecordFinished(path); });
+        capture.Failed += msg => _ui.TryEnqueue(() => { if (!ReferenceEquals(_capture, capture)) return; OnRecordFailed(msg); });
+        capture.Warning += msg => _ui.TryEnqueue(() => { if (!ReferenceEquals(_capture, capture)) return; AudioNotice = msg; });
+        capture.PreviewDismissed += reason => _ui.TryEnqueue(() =>
         {
+            if (!ReferenceEquals(_capture, capture)) return;
             StatusText = reason;
             ResetRecordState();
+        });
+        capture.PreviewClipEnded += () => _ui.TryEnqueue(() =>
+        {
+            if (!ReferenceEquals(_capture, capture)) return;
+            SetPreviewClipEnded(true);
+            StatusText = "影片已結束";
         });
 
         JobTitle = "螢幕側錄";
@@ -294,18 +303,23 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            await _capture.PrepareAsync(UrlText, jobDir, "螢幕側錄");
+            await capture.PrepareAsync(UrlText, jobDir, "螢幕側錄");
+            if (!ReferenceEquals(_capture, capture)) return;
             PreviewReady = true;
             StartPositionPolling();
         }
-        catch (Exception e) { OnRecordFailed(e.Message); }
+        catch (Exception e)
+        {
+            if (!ReferenceEquals(_capture, capture)) return;
+            OnRecordFailed(e.Message);
+        }
     }
 
     /// <summary>「從這裡開始錄影」: commit the current player position and start writing.</summary>
     private void BeginRecordFromHere()
     {
         // 底層若已沒有監看（例如監看窗已拆掉），不可把主畫面切成「錄製中」。
-        if (_capture is null || !IsPreviewing || !PreviewReady || !_capture.BeginRecording())
+        if (_capture is null || !IsPreviewing || !PreviewReady || _previewClipEnded || !_capture.BeginRecording())
         {
             if (!IsRecording)
             {
@@ -434,6 +448,13 @@ public sealed class MainViewModel : INotifyPropertyChanged
         ResetRecordState();
     }
 
+    private void SetPreviewClipEnded(bool value)
+    {
+        if (_previewClipEnded == value) return;
+        _previewClipEnded = value;
+        BeginRecordCommand.RaiseCanExecuteChanged();
+    }
+
     private void OnRecordFailed(string message)
     {
         StopGuardTimer();
@@ -448,6 +469,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
         IsRecording = false;
         IsPreviewing = false;
         PreviewReady = false;
+        SetPreviewClipEnded(false);
         _settleTargetBehind = null;
         _dvrWindowSec = 0; _behindLiveSec = 0;
         Raise(nameof(ShowScrubber));

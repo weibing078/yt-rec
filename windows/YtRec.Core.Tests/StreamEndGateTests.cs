@@ -7,33 +7,54 @@ public class StreamEndGateTests
     [Fact]
     public void EndedWhileRecordingSchedulesOneStop()
     {
-        Assert.Equal(StreamEndAction.ScheduleStop, StreamEndGate.OnEnded(isRecording: true, alreadyScheduled: false));
+        Assert.Equal(StreamEndAction.ScheduleStop,
+            StreamEndGate.OnEnded(isRecording: true, alreadyScheduled: false, previewAlreadyNoted: false));
     }
 
     [Fact]
-    public void EndedDuringPreviewDoesNotTearDown()
+    public void EndedDuringPreviewNotesOnceWithoutTearingDown()
     {
-        Assert.Equal(StreamEndAction.Ignore, StreamEndGate.OnEnded(isRecording: false, alreadyScheduled: false));
+        Assert.Equal(StreamEndAction.NotePreviewEnded,
+            StreamEndGate.OnEnded(isRecording: false, alreadyScheduled: false, previewAlreadyNoted: false));
+        Assert.Equal(StreamEndAction.Ignore,
+            StreamEndGate.OnEnded(isRecording: false, alreadyScheduled: false, previewAlreadyNoted: true));
     }
 
     [Fact]
     public void RepeatedEndedDoesNotReschedule()
     {
-        Assert.Equal(StreamEndAction.Ignore, StreamEndGate.OnEnded(isRecording: true, alreadyScheduled: true));
+        Assert.Equal(StreamEndAction.Ignore,
+            StreamEndGate.OnEnded(isRecording: true, alreadyScheduled: true, previewAlreadyNoted: false));
     }
 
     [Fact]
-    public void ContentReadyCancelsPendingStop()
+    public void SameVideoAndReadyCancelsStop()
     {
-        Assert.Equal(StreamEndAction.CancelScheduledStop,
-            StreamEndGate.OnContentReady(contentReady: true, alreadyScheduled: true));
+        Assert.Equal(StreamEndAction.CancelScheduledStop, StreamEndGate.OnPlayback(
+            alreadyScheduled: true, contentReady: true, isAd: false,
+            scheduledVideoId: "abc", signalVideoId: "abc"));
     }
 
     [Fact]
-    public void ContentReadyWithoutPendingStopIsIgnored()
+    public void DifferentVideoStopsImmediately()
     {
-        Assert.Equal(StreamEndAction.Ignore, StreamEndGate.OnContentReady(contentReady: true, alreadyScheduled: false));
-        Assert.Equal(StreamEndAction.Ignore, StreamEndGate.OnContentReady(contentReady: false, alreadyScheduled: true));
+        Assert.Equal(StreamEndAction.StopNow, StreamEndGate.OnPlayback(
+            alreadyScheduled: true, contentReady: true, isAd: false,
+            scheduledVideoId: "abc", signalVideoId: "xyz"));
+        Assert.Equal(StreamEndAction.StopNow, StreamEndGate.OnPlayback(
+            alreadyScheduled: true, contentReady: false, isAd: true,
+            scheduledVideoId: "abc", signalVideoId: "xyz"));
+    }
+
+    [Fact]
+    public void AdReadyDoesNotCancel()
+    {
+        Assert.Equal(StreamEndAction.Ignore, StreamEndGate.OnPlayback(
+            alreadyScheduled: true, contentReady: true, isAd: true,
+            scheduledVideoId: "abc", signalVideoId: "abc"));
+        Assert.Equal(StreamEndAction.Ignore, StreamEndGate.OnPlayback(
+            alreadyScheduled: true, contentReady: false, isAd: false,
+            scheduledVideoId: "abc", signalVideoId: "abc"));
     }
 
     [Fact]

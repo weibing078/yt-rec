@@ -18,6 +18,8 @@ public sealed class CaptureController
     public event Action<string>? Warning;     // non-fatal (recording continues) — e.g. audio device changed
     /// <summary>Preview was torn down with no file (monitor stop). The main window must leave "錄製中".</summary>
     public event Action<string>? PreviewDismissed;
+    /// <summary>The preview player reached the end of this video. Don't tear the monitor down; disable record.</summary>
+    public event Action? PreviewClipEnded;
 
     public const string PreviewDismissedReason = "已取消監看，沒有開始錄影。";
 
@@ -34,6 +36,9 @@ public sealed class CaptureController
     private bool _previewing;   // session started in preview; not yet writing to a file
     private bool _stopping;
     private bool _endedStopScheduled;
+    private bool _previewEndedNoted;
+    private int _endedRound;
+    private string? _endedVideoId;
     private DispatcherQueueTimer? _endedTimer;
     private bool _audioDeviceLost; // Win10 loopback endpoint invalidated mid-record → finalize must keep full video
     private string? _faultMessage; // cause of a capture-callback fault, preferred over the reassembler's error
@@ -144,8 +149,8 @@ public sealed class CaptureController
             };
             // Stream end is a 20s candidate while recording. Preview ended does not tear the monitor down
             // (that used to leave the main window showing 「錄製中」 with no session underneath).
-            _player.Ended += () => _ui.TryEnqueue(OnPlayerEnded);
-            _player.ContentReadyChanged += ready => _ui.TryEnqueue(() => OnContentReady(ready));
+            _player.Ended += id => _ui.TryEnqueue(() => OnPlayerEnded(id));
+            _player.ContentReadyChanged += (ready, ad, id) => _ui.TryEnqueue(() => OnPlaybackSignal(ready, ad, id));
 
             await RecordingSession.RequestBorderlessAsync(); // drop the yellow WGC border before capture
             _session.Start();           // PREVIEW: frames mirror to the monitor, nothing is written yet
@@ -171,31 +176,47 @@ public sealed class CaptureController
     /// Returns false when the preview is already gone — the caller must say so instead of showing 「錄製中」.</summary>
     public bool BeginRecording()
     {
+        if (_previewEndedNoted) return false;
         if (!StreamEndGate.BeginRecordingSucceeds(_session is not null, _previewing, IsRecording)) return false;
         _session!.BeginWriting();
         _previewing = false;
         IsRecording = true;
-        _monitor?.SetStatus(AudioCapability.IsolatedAudioSupported(OsBuild)
-            ? "錄製中（只錄這個串流的聲音）"
-            : "錄製中（此電腦會錄到全系統聲音）");
+        _monitor?.SetStatus(RecordingMonitorStatus());
         Status?.Invoke("錄製中");
         return true;
     }
 
-    /// <summary>Player reported ended. Recording: schedule one stop in 20s. Preview: ignore.</summary>
-    private void OnPlayerEnded()
+    private string RecordingMonitorStatus() =>
+        AudioCapability.IsolatedAudioSupported(OsBuild)
+            ? "錄製中（只錄這個串流的聲音）"
+            : "錄製中（此電腦會錄到全系統聲音）";
+
+    /// <summary>Player reported ended. Recording: schedule one stop in 20s. Preview: leave the monitor up and say so.</summary>
+    private void OnPlayerEnded(string? videoId)
     {
-        if (StreamEndGate.OnEnded(IsRecording, _endedStopScheduled) != StreamEndAction.ScheduleStop) return;
+        var action = StreamEndGate.OnEnded(IsRecording, _endedStopScheduled, _previewEndedNoted);
+        if (action == StreamEndAction.NotePreviewEnded)
+        {
+            _previewEndedNoted = true;
+            Status?.Invoke("影片已結束");
+            _monitor?.SetStatus("影片已結束");
+            PreviewClipEnded?.Invoke();
+            return;
+        }
+        if (action != StreamEndAction.ScheduleStop) return;
         _endedStopScheduled = true;
-        Status?.Invoke("直播畫面已結束，20 秒後自動收工。");
+        _endedVideoId = string.IsNullOrEmpty(videoId) ? null : videoId;
+        var round = ++_endedRound;
+        const string countdown = "直播畫面已結束，20 秒後自動收工。";
+        Status?.Invoke(countdown);
+        _monitor?.SetStatus(countdown);
         _endedTimer?.Stop();
         _endedTimer = _ui.CreateTimer();
         _endedTimer.Interval = TimeSpan.FromSeconds(20);
         _endedTimer.IsRepeating = false;
         _endedTimer.Tick += (_, _) =>
         {
-            // A tick already queued when playback resumes must not still stop the file.
-            if (!_endedStopScheduled) return;
+            if (round != _endedRound) return;
             _endedStopScheduled = false;
             _endedTimer = null;
             if (IsRecording) _ = StopAsync();
@@ -203,20 +224,37 @@ public sealed class CaptureController
         _endedTimer.Start();
     }
 
-    /// <summary>Real content is playing again — drop the pending stop so a brief state-0 doesn't cut the file.</summary>
-    private void OnContentReady(bool ready)
+    /// <summary>Same video playing again cancels the pending stop. A different video id stops now.</summary>
+    private void OnPlaybackSignal(bool ready, bool isAd, string? videoId)
     {
-        if (StreamEndGate.OnContentReady(ready, _endedStopScheduled) != StreamEndAction.CancelScheduledStop) return;
-        CancelEndedCountdown(announceResume: true);
+        switch (StreamEndGate.OnPlayback(_endedStopScheduled, ready, isAd, _endedVideoId, videoId))
+        {
+            case StreamEndAction.StopNow:
+                _endedRound++;
+                _endedStopScheduled = false;
+                _endedTimer?.Stop();
+                _endedTimer = null;
+                if (IsRecording) _ = StopAsync();
+                break;
+            case StreamEndAction.CancelScheduledStop:
+                CancelEndedCountdown(announceResume: true);
+                break;
+        }
     }
 
     private void CancelEndedCountdown(bool announceResume)
     {
+        _endedRound++;
         _endedTimer?.Stop();
         _endedTimer = null;
         var wasScheduled = _endedStopScheduled;
         _endedStopScheduled = false;
-        if (wasScheduled && announceResume) Status?.Invoke("播放已恢復，繼續錄影。");
+        _endedVideoId = null;
+        if (wasScheduled && announceResume)
+        {
+            Status?.Invoke("錄製中");
+            _monitor?.SetStatus(RecordingMonitorStatus());
+        }
     }
 
     /// <summary>Seek the live preview to <paramref name="behindSec"/> behind the live edge (rewind scrubber).</summary>
