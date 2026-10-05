@@ -16,6 +16,10 @@ public sealed class CaptureController
     public event Action<string>? Finished;   // output mp4 path
     public event Action<string>? Failed;      // error message
     public event Action<string>? Warning;     // non-fatal (recording continues) — e.g. audio device changed
+    /// <summary>Preview was torn down with no file (monitor stop). The main window must leave "錄製中".</summary>
+    public event Action<string>? PreviewDismissed;
+
+    public const string PreviewDismissedReason = "已取消監看，沒有開始錄影。";
 
     private readonly DispatcherQueue _ui = DispatcherQueue.GetForCurrentThread();
     private readonly string _ffmpegPath;
@@ -29,6 +33,8 @@ public sealed class CaptureController
     private string _outputPath = "";
     private bool _previewing;   // session started in preview; not yet writing to a file
     private bool _stopping;
+    private bool _endedStopScheduled;
+    private DispatcherQueueTimer? _endedTimer;
     private bool _audioDeviceLost; // Win10 loopback endpoint invalidated mid-record → finalize must keep full video
     private string? _faultMessage; // cause of a capture-callback fault, preferred over the reassembler's error
 
@@ -136,8 +142,10 @@ public sealed class CaptureController
                 TargetSize = (target.Width, target.Height),
                 CropFrac = _player.VideoRectFrac,
             };
-            // Stream end: stop if recording, else just tear the preview down (no file).
-            _player.Ended += () => _ui.TryEnqueue(() => { if (IsRecording) _ = StopAsync(); else CancelPreview(); });
+            // Stream end is a 20s candidate while recording. Preview ended does not tear the monitor down
+            // (that used to leave the main window showing 「錄製中」 with no session underneath).
+            _player.Ended += () => _ui.TryEnqueue(OnPlayerEnded);
+            _player.ContentReadyChanged += ready => _ui.TryEnqueue(() => OnContentReady(ready));
 
             await RecordingSession.RequestBorderlessAsync(); // drop the yellow WGC border before capture
             _session.Start();           // PREVIEW: frames mirror to the monitor, nothing is written yet
@@ -159,17 +167,56 @@ public sealed class CaptureController
         }
     }
 
-    /// <summary>Phase 2: switch the live preview into recording from the current player position.</summary>
-    public void BeginRecording()
+    /// <summary>Phase 2: switch the live preview into recording from the current player position.
+    /// Returns false when the preview is already gone — the caller must say so instead of showing 「錄製中」.</summary>
+    public bool BeginRecording()
     {
-        if (_session is null || IsRecording) return;
-        _session.BeginWriting();
+        if (!StreamEndGate.BeginRecordingSucceeds(_session is not null, _previewing, IsRecording)) return false;
+        _session!.BeginWriting();
         _previewing = false;
         IsRecording = true;
         _monitor?.SetStatus(AudioCapability.IsolatedAudioSupported(OsBuild)
             ? "錄製中（只錄這個串流的聲音）"
             : "錄製中（此電腦會錄到全系統聲音）");
         Status?.Invoke("錄製中");
+        return true;
+    }
+
+    /// <summary>Player reported ended. Recording: schedule one stop in 20s. Preview: ignore.</summary>
+    private void OnPlayerEnded()
+    {
+        if (StreamEndGate.OnEnded(IsRecording, _endedStopScheduled) != StreamEndAction.ScheduleStop) return;
+        _endedStopScheduled = true;
+        Status?.Invoke("直播畫面已結束，20 秒後自動收工。");
+        _endedTimer?.Stop();
+        _endedTimer = _ui.CreateTimer();
+        _endedTimer.Interval = TimeSpan.FromSeconds(20);
+        _endedTimer.IsRepeating = false;
+        _endedTimer.Tick += (_, _) =>
+        {
+            // A tick already queued when playback resumes must not still stop the file.
+            if (!_endedStopScheduled) return;
+            _endedStopScheduled = false;
+            _endedTimer = null;
+            if (IsRecording) _ = StopAsync();
+        };
+        _endedTimer.Start();
+    }
+
+    /// <summary>Real content is playing again — drop the pending stop so a brief state-0 doesn't cut the file.</summary>
+    private void OnContentReady(bool ready)
+    {
+        if (StreamEndGate.OnContentReady(ready, _endedStopScheduled) != StreamEndAction.CancelScheduledStop) return;
+        CancelEndedCountdown(announceResume: true);
+    }
+
+    private void CancelEndedCountdown(bool announceResume)
+    {
+        _endedTimer?.Stop();
+        _endedTimer = null;
+        var wasScheduled = _endedStopScheduled;
+        _endedStopScheduled = false;
+        if (wasScheduled && announceResume) Status?.Invoke("播放已恢復，繼續錄影。");
     }
 
     /// <summary>Seek the live preview to <paramref name="behindSec"/> behind the live edge (rewind scrubber).</summary>
@@ -183,16 +230,19 @@ public sealed class CaptureController
     public async Task<DvrProgress?> ProgressAsync()
         => DvrScrubber.ParseProgress(_player is null ? null : await _player.ProgressStateAsync());
 
-    /// <summary>Abort a preview that never started recording — tear everything down with no file produced.</summary>
-    public void CancelPreview()
+    /// <summary>Abort a preview that never started recording — tear everything down with no file produced.
+    /// <paramref name="notify"/> is false when the caller will surface its own error (session fault).</summary>
+    public void CancelPreview(bool notify = true)
     {
         if (IsRecording || _stopping) return;
         _stopping = true;
+        CancelEndedCountdown(announceResume: false);
         try { _ = _session?.StopAsync(); } catch { }   // disposes the WGC capture; nothing to reassemble
         CloseWindows();
         _session = null;
         _previewing = false;
         _stopping = false;
+        if (notify) PreviewDismissed?.Invoke(PreviewDismissedReason);
     }
 
     /// <summary>A throw escaped the capture callback (GPU device-loss/TDR, hybrid-GPU switch, display unplug, or
@@ -204,7 +254,7 @@ public sealed class CaptureController
         if (IsRecording) _ = StopAsync();       // finalize the partial recording; StopAsync reports via Finished/Failed
         else if (!_stopping)                    // preview fault: tear down with no file and surface the cause
         {
-            CancelPreview();
+            CancelPreview(notify: false);
             Failed?.Invoke(message);
         }
     }
@@ -221,9 +271,14 @@ public sealed class CaptureController
         return new AudioLoopbackCapture(source, browserPid);
     }
 
-    public async Task StopAsync()
+    /// <summary>Returns false when there is no session to stop. Already-stopping returns true so the main
+    /// window doesn't clear an in-progress save.</summary>
+    public async Task<bool> StopAsync()
     {
-        if (_stopping || _session is null) return;
+        var session = _session;
+        if (StreamEndGate.StopReportsFailure(session is not null)) return false;
+        if (!StreamEndGate.StopHasWork(session is not null, _stopping)) return true;
+        CancelEndedCountdown(announceResume: false);
         _stopping = true;
         IsRecording = false;
 
@@ -235,7 +290,7 @@ public sealed class CaptureController
             // before StopAsync/CloseWindows tears it down. Blank/unknown title → 側錄.mp4.
             var title = _player is null ? null : await _player.TitleAsync();
             _outputPath = OutputPaths.SideRecordOutput(_jobDir, title);
-            var result = await _session.StopAsync();
+            var result = await session!.StopAsync();
             Status?.Invoke($"session: frames={result.VideoFrames} dropped={result.VideoFramesDropped} audioBytes={result.AudioBytes} ffmpegExit={result.FfmpegExitCode} {result.Error}");
 
             var (ok, err) = await SegmentReassembler.ReassembleAsync(
@@ -258,6 +313,7 @@ public sealed class CaptureController
             _session = null;
             _stopping = false;
         }
+        return true;
     }
 
     private void CloseWindows()

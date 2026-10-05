@@ -282,6 +282,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         _capture.Finished += path => _ui.TryEnqueue(() => OnRecordFinished(path));
         _capture.Failed += msg => _ui.TryEnqueue(() => OnRecordFailed(msg));
         _capture.Warning += msg => _ui.TryEnqueue(() => AudioNotice = msg); // non-fatal (e.g. audio device changed)
+        _capture.PreviewDismissed += reason => _ui.TryEnqueue(() =>
+        {
+            StatusText = reason;
+            ResetRecordState();
+        });
 
         JobTitle = "螢幕側錄";
         StatusText = "準備中…";
@@ -299,10 +304,18 @@ public sealed class MainViewModel : INotifyPropertyChanged
     /// <summary>「從這裡開始錄影」: commit the current player position and start writing.</summary>
     private void BeginRecordFromHere()
     {
-        if (_capture is null || !IsPreviewing || !PreviewReady) return;
+        // 底層若已沒有監看（例如監看窗已拆掉），不可把主畫面切成「錄製中」。
+        if (_capture is null || !IsPreviewing || !PreviewReady || !_capture.BeginRecording())
+        {
+            if (!IsRecording)
+            {
+                StatusText = "無法開始錄影：監看已經結束";
+                ResetRecordState();
+            }
+            return;
+        }
         StopPositionPolling();
         _seekDebounce?.Stop();   // cancel any pending rewind so a late seek can't jump the recording's opening
-        _capture.BeginRecording();
         PreviewReady = false;
         IsPreviewing = false;
         IsRecording = true;
@@ -310,20 +323,35 @@ public sealed class MainViewModel : INotifyPropertyChanged
         StartGuardTimer();
     }
 
-    /// <summary>「取消監看」: tear the preview down with no file produced.</summary>
+    /// <summary>「取消監看」: tear the preview down with no file produced. The controller tells us when it's gone.</summary>
     private void CancelPreview()
     {
         StopPositionPolling();
-        _capture?.CancelPreview();
-        StatusText = "已取消監看";
-        ResetRecordState();
+        if (_capture is null)
+        {
+            StatusText = "已取消監看";
+            ResetRecordState();
+            return;
+        }
+        _capture.CancelPreview();
     }
 
     private void StopOrCancel()
     {
-        if (IsRecording) _ = _capture?.StopAsync();
+        if (IsRecording) _ = StopFromUiAsync();
         else if (IsPreviewing) CancelPreview();
         else _cts?.Cancel();
+    }
+
+    /// <summary>停止寫檔。底層沒有這一場時把主畫面拉回閒置，不要停在「錄製中」。</summary>
+    private async Task StopFromUiAsync()
+    {
+        var cap = _capture;
+        if (cap is null || !await cap.StopAsync())
+        {
+            StatusText = "沒有進行中的側錄";
+            ResetRecordState();
+        }
     }
 
     // ── Rewind scrubber wiring ──

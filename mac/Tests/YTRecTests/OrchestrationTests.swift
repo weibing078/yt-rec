@@ -86,6 +86,16 @@ final class EndedStopScheduleTests: XCTestCase {
     func testIgnoresOtherEvents() {
         XCTAssertFalse(AppState.shouldScheduleEndedStop(event: "playing", recordingToFile: true, alreadyScheduled: false))
     }
+    func testPlaybackResumeCancelsPendingStop() {
+        XCTAssertEqual(AppState.streamEndAction(event: "ready", recordingToFile: true, alreadyScheduled: true), .cancelScheduledStop)
+        XCTAssertEqual(AppState.streamEndAction(event: "playing", recordingToFile: true, alreadyScheduled: true), .cancelScheduledStop)
+        XCTAssertEqual(AppState.streamEndAction(event: "ready", recordingToFile: true, alreadyScheduled: false), .ignore)
+    }
+    func testCommitOnlyForTheSameJobStillRecording() {
+        XCTAssertTrue(AppState.shouldCommitPlayerEndedStop(sameJob: true, recordingToFile: true))
+        XCTAssertFalse(AppState.shouldCommitPlayerEndedStop(sameJob: false, recordingToFile: true))
+        XCTAssertFalse(AppState.shouldCommitPlayerEndedStop(sameJob: true, recordingToFile: false))
+    }
 }
 
 final class StopNotificationTests: XCTestCase {

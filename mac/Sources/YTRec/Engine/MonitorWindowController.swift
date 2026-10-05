@@ -485,6 +485,11 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
       document.documentElement.appendChild(style);
       var sentTitle = false;
       var sentDims = '';
+      var sawEnded = false;
+      function lcfAdShowing() {
+        var node = document.getElementById('movie_player');
+        return !!(node && node.classList && (node.classList.contains('ad-showing') || node.classList.contains('ad-interrupting')));
+      }
       var tick = function () {
         try {
           if (!sentTitle && document.title) {
@@ -494,7 +499,7 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
           var v = document.querySelector('video');
           if (!v) return;
           var mp = document.getElementById('movie_player');
-          var ad = !!(mp && mp.classList && (mp.classList.contains('ad-showing') || mp.classList.contains('ad-interrupting')));
+          var ad = lcfAdShowing();
           if (ad) {
             // No-Premium: an ad must never land in the recording. Auto-skip any skippable ad the instant a
             // skip control appears, keep the ad silent, and never report its geometry as the source dims.
@@ -517,11 +522,21 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
               if (mp.setSize) { try { mp.setSize(window.innerWidth, window.innerHeight); } catch (e) {} }
             }
             try { window.dispatchEvent(new Event('resize')); } catch (e) {}
+            // 假結束之後正片還在播：只回報一次 ready，讓原生端取消 20 秒收工。真的結束（暫停／ended）不回報。
+            var contentReady = !v.paused && v.currentTime > 0 && v.readyState >= 3 && v.videoWidth > 0;
+            if (sawEnded && contentReady) {
+              sawEnded = false;
+              window.webkit.messageHandlers.lcf.postMessage('ready');
+            }
           }
           if (!v.__lcfHooked) {
             v.__lcfHooked = true;
             v.addEventListener('playing', function () { window.webkit.messageHandlers.lcf.postMessage('playing'); });
-            v.addEventListener('ended', function () { window.webkit.messageHandlers.lcf.postMessage('ended'); });
+            v.addEventListener('ended', function () {
+              if (lcfAdShowing()) return;
+              sawEnded = true;
+              window.webkit.messageHandlers.lcf.postMessage('ended');
+            });
             v.addEventListener('error', function () { window.webkit.messageHandlers.lcf.postMessage('error'); });
           }
         } catch (e) {}

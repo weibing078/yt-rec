@@ -117,7 +117,8 @@ public static class PlayerAssets
                 }
                 if (!v.__ytrecHooked) {
                   v.__ytrecHooked = true;
-                  v.addEventListener('ended', function () { post({ type: 'ytrec', state: 'ended' }); });
+                  // Ad and content share one <video>. An ad's end must not look like the stream ended.
+                  v.addEventListener('ended', function () { if (!adShowing()) post({ type: 'ytrec', state: 'ended' }); });
                 }
               }
               // Recording must start on REAL content, never an ad: report both so the host can gate the writer.
@@ -126,7 +127,8 @@ public static class PlayerAssets
               if (p) {
                 if (!ad && p.unMute) p.unMute();
                 if (!ad && p.setPlaybackQualityRange) p.setPlaybackQualityRange('hd1080', 'hd1080'); // pin 1080p
-                if (p.getPlayerState && p.getPlayerState() === 0) post({ type: 'ytrec', state: 'ended' }); // 0=ENDED
+                // 0=ENDED. Don't report it during an ad, and the host treats it as a 20s candidate, not an instant stop.
+                if (p.getPlayerState && p.getPlayerState() === 0 && !adShowing()) post({ type: 'ytrec', state: 'ended' });
               }
               ensureTheater();
             } catch (e) {}

@@ -22,6 +22,10 @@ public sealed class Win32PlayerHost
     public uint BrowserProcessId { get; private set; }
     public event Action? Ended;
 
+    /// <summary>Fires whenever the page reports <c>ready</c> (true = real content is playing). The capture
+    /// controller uses a rising ready to cancel a pending "stream ended" stop.</summary>
+    public event Action<bool>? ContentReadyChanged;
+
     /// <summary>The source video's pixel dimensions (videoWidth, videoHeight), reported by the page JS — the
     /// host derives landscape/portrait + the output size from this. Null until the player reports.</summary>
     public (int W, int H)? VideoDims { get; private set; }
@@ -98,7 +102,10 @@ public sealed class Win32PlayerHost
                 if (root.TryGetProperty("rect", out var r) && r.ValueKind == JsonValueKind.Array && r.GetArrayLength() == 4)
                     VideoRectFrac = (r[0].GetDouble(), r[1].GetDouble(), r[2].GetDouble(), r[3].GetDouble());
                 if (root.TryGetProperty("ready", out var rdy) && (rdy.ValueKind == JsonValueKind.True || rdy.ValueKind == JsonValueKind.False))
+                {
                     ContentReady = rdy.GetBoolean();
+                    ContentReadyChanged?.Invoke(ContentReady);
+                }
                 if (root.TryGetProperty("ad", out var adv) && (adv.ValueKind == JsonValueKind.True || adv.ValueKind == JsonValueKind.False))
                     AdShowing = adv.GetBoolean();
             }
