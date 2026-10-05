@@ -261,7 +261,7 @@ struct JobCardView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(.lcSignal)
                 .controlSize(.large)
-                .disabled(!ready)
+                .disabled(!ready || app.previewShowsEnded)
             }
 
             // 取消監看：低調、置中、明顯次於主操作

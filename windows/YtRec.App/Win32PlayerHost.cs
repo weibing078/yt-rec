@@ -20,11 +20,8 @@ public sealed class Win32PlayerHost
 
     public IntPtr Hwnd { get; private set; }
     public uint BrowserProcessId { get; private set; }
-    /// <summary>Player reported ended. The argument is <c>getVideoData().video_id</c>, or null if unknown.</summary>
-    public event Action<string?>? Ended;
-
-    /// <summary>Fires when the page reports ready/ad/videoId together. Arguments: content ready, ad showing, video id.</summary>
-    public event Action<bool, bool, string?>? ContentReadyChanged;
+    /// <summary>One snapshot per second: ended, ad, content, video id (empty if unknown).</summary>
+    public event Action<bool, bool, bool, string>? Snapshot;
 
     /// <summary>The source video's pixel dimensions (videoWidth, videoHeight), reported by the page JS — the
     /// host derives landscape/portrait + the output size from this. Null until the player reports.</summary>
@@ -96,19 +93,19 @@ public sealed class Win32PlayerHost
             {
                 using var doc = JsonDocument.Parse(e.WebMessageAsJson);
                 var root = doc.RootElement;
-                string? videoId = root.TryGetProperty("videoId", out var vid) && vid.ValueKind == JsonValueKind.String
-                    ? vid.GetString() : null;
-                if (root.TryGetProperty("state", out var s) && s.GetString() == "ended") Ended?.Invoke(videoId);
                 if (root.TryGetProperty("dims", out var d) && d.ValueKind == JsonValueKind.Array && d.GetArrayLength() == 2)
                     VideoDims = (d[0].GetInt32(), d[1].GetInt32());
                 if (root.TryGetProperty("rect", out var r) && r.ValueKind == JsonValueKind.Array && r.GetArrayLength() == 4)
                     VideoRectFrac = (r[0].GetDouble(), r[1].GetDouble(), r[2].GetDouble(), r[3].GetDouble());
-                if (root.TryGetProperty("ad", out var adv) && (adv.ValueKind == JsonValueKind.True || adv.ValueKind == JsonValueKind.False))
-                    AdShowing = adv.GetBoolean();
-                if (root.TryGetProperty("ready", out var rdy) && (rdy.ValueKind == JsonValueKind.True || rdy.ValueKind == JsonValueKind.False))
+                if (root.TryGetProperty("snap", out var snap) && snap.ValueKind == JsonValueKind.Object)
                 {
-                    ContentReady = rdy.GetBoolean();
-                    ContentReadyChanged?.Invoke(ContentReady, AdShowing, videoId);
+                    bool ended = snap.TryGetProperty("ended", out var en) && en.ValueKind == JsonValueKind.True;
+                    bool ad = snap.TryGetProperty("ad", out var adv) && adv.ValueKind == JsonValueKind.True;
+                    bool content = snap.TryGetProperty("content", out var ct) && ct.ValueKind == JsonValueKind.True;
+                    string id = snap.TryGetProperty("id", out var vid) && vid.ValueKind == JsonValueKind.String ? vid.GetString() ?? "" : "";
+                    AdShowing = ad;
+                    ContentReady = content;
+                    Snapshot?.Invoke(ended, ad, content, id);
                 }
             }
             catch { }

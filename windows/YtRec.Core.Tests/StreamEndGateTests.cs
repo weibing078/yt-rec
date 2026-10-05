@@ -2,61 +2,117 @@ using YtRec.Core;
 
 namespace YtRec.Core.Tests;
 
+/// <summary>Same scenarios as macOS StreamEndTableTests. Times are offsets from a fixed T0.</summary>
+public class StreamEndTableTests
+{
+    static readonly DateTime T0 = new(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+    static PlayerSnapshot Snap(bool ended, bool ad, bool content, string id, double ageSeconds) =>
+        new(ended, ad, content, id, T0.AddSeconds(-ageSeconds));
+
+    static StreamDecision Eval(StreamPhase phase, string anchor, PlayerSnapshot? snap, double? candidateAge, int ext) =>
+        StreamEndGate.Evaluate(phase, anchor, snap,
+            candidateAge is double a ? T0.AddSeconds(-a) : null, ext, T0);
+
+    [Fact]
+    public void SameVideoResumesAfterBriefEnd_DoesNotStop()
+    {
+        var d = Eval(StreamPhase.Recording, "aaa", Snap(false, false, true, "aaa", 0), 5, 0);
+        Assert.Null(d.StopReason);
+        Assert.Null(d.CandidateStart);
+        Assert.Null(d.CountdownSeconds);
+    }
+
+    [Fact]
+    public void StillEndedAfter20Seconds_Stops()
+    {
+        var d = Eval(StreamPhase.Recording, "aaa", Snap(true, false, false, "aaa", 0), 20, 0);
+        Assert.Equal(StreamEndGate.VideoEndedReason, d.StopReason);
+    }
+
+    [Fact]
+    public void AutoplayNextVideoWithoutEnded_StopsNow()
+    {
+        var d = Eval(StreamPhase.Recording, "aaa", Snap(false, false, true, "bbb", 0), null, 0);
+        Assert.Equal(StreamEndGate.OtherVideoReason, d.StopReason);
+    }
+
+    [Fact]
+    public void DifferentIdDuringAd_DoesNotStop()
+    {
+        var d = Eval(StreamPhase.Recording, "aaa", Snap(false, true, false, "bbb", 0), null, 0);
+        Assert.Null(d.StopReason);
+        Assert.Null(d.CandidateStart);
+    }
+
+    [Fact]
+    public void AdAtDeadline_Extends()
+    {
+        var d = Eval(StreamPhase.Recording, "aaa", Snap(true, true, false, "aaa", 0), 20, 0);
+        Assert.Null(d.StopReason);
+        Assert.Equal(20, d.ExtendedAdSeconds);
+        Assert.NotNull(d.CandidateStart);
+    }
+
+    [Fact]
+    public void AdExtensionsReach120Seconds_ThenStops()
+    {
+        var d = Eval(StreamPhase.Recording, "aaa", Snap(true, true, false, "aaa", 0), 140, 120);
+        Assert.Equal(StreamEndGate.VideoEndedReason, d.StopReason);
+    }
+
+    [Fact]
+    public void EmptyIdWhileContentPlays_DoesNotStop()
+    {
+        var d = Eval(StreamPhase.Recording, "aaa", Snap(false, false, true, "", 0), 5, 0);
+        Assert.Null(d.StopReason);
+        Assert.Null(d.CandidateStart);
+    }
+
+    [Fact]
+    public void StaleSnapshotPastDeadline_Stops()
+    {
+        // Content is true on the stale snapshot; without R0 this would clear the candidate instead of stopping.
+        var d = Eval(StreamPhase.Recording, "aaa", Snap(false, false, true, "aaa", 6), 20, 0);
+        Assert.Equal(StreamEndGate.VideoEndedReason, d.StopReason);
+    }
+
+    [Fact]
+    public void FinalizingIgnoresEnded()
+    {
+        var start = T0.AddSeconds(-5);
+        var d = StreamEndGate.Evaluate(StreamPhase.Finalizing, "aaa", Snap(true, false, false, "aaa", 0), start, 0, T0);
+        Assert.Null(d.StopReason);
+        Assert.True(d.LeaveUiAlone);
+        Assert.Equal(start, d.CandidateStart);
+        Assert.False(d.PreviewShowsEnded);
+    }
+
+    [Fact]
+    public void PreviewEndedShowsNoticeAndClearsWhenContentReturns()
+    {
+        var ended = Eval(StreamPhase.Preview, "aaa", Snap(true, false, false, "aaa", 0), null, 0);
+        Assert.Null(ended.StopReason);
+        Assert.True(ended.PreviewShowsEnded);
+        Assert.False(StreamEndGate.CanBeginFromPreview(previewReady: true, previewShowsEnded: true));
+
+        var back = Eval(StreamPhase.Preview, "aaa", Snap(false, false, true, "aaa", 0), null, 0);
+        Assert.False(back.PreviewShowsEnded);
+        Assert.True(StreamEndGate.CanBeginFromPreview(previewReady: true, previewShowsEnded: false));
+    }
+
+    [Fact]
+    public void ContentWithoutCandidate_DoesNothing()
+    {
+        var d = Eval(StreamPhase.Recording, "aaa", Snap(false, false, true, "aaa", 0), null, 0);
+        Assert.Null(d.StopReason);
+        Assert.Null(d.CandidateStart);
+        Assert.Null(d.CountdownSeconds);
+    }
+}
+
 public class StreamEndGateTests
 {
-    [Fact]
-    public void EndedWhileRecordingSchedulesOneStop()
-    {
-        Assert.Equal(StreamEndAction.ScheduleStop,
-            StreamEndGate.OnEnded(isRecording: true, alreadyScheduled: false, previewAlreadyNoted: false));
-    }
-
-    [Fact]
-    public void EndedDuringPreviewNotesOnceWithoutTearingDown()
-    {
-        Assert.Equal(StreamEndAction.NotePreviewEnded,
-            StreamEndGate.OnEnded(isRecording: false, alreadyScheduled: false, previewAlreadyNoted: false));
-        Assert.Equal(StreamEndAction.Ignore,
-            StreamEndGate.OnEnded(isRecording: false, alreadyScheduled: false, previewAlreadyNoted: true));
-    }
-
-    [Fact]
-    public void RepeatedEndedDoesNotReschedule()
-    {
-        Assert.Equal(StreamEndAction.Ignore,
-            StreamEndGate.OnEnded(isRecording: true, alreadyScheduled: true, previewAlreadyNoted: false));
-    }
-
-    [Fact]
-    public void SameVideoAndReadyCancelsStop()
-    {
-        Assert.Equal(StreamEndAction.CancelScheduledStop, StreamEndGate.OnPlayback(
-            alreadyScheduled: true, contentReady: true, isAd: false,
-            scheduledVideoId: "abc", signalVideoId: "abc"));
-    }
-
-    [Fact]
-    public void DifferentVideoStopsImmediately()
-    {
-        Assert.Equal(StreamEndAction.StopNow, StreamEndGate.OnPlayback(
-            alreadyScheduled: true, contentReady: true, isAd: false,
-            scheduledVideoId: "abc", signalVideoId: "xyz"));
-        Assert.Equal(StreamEndAction.StopNow, StreamEndGate.OnPlayback(
-            alreadyScheduled: true, contentReady: false, isAd: true,
-            scheduledVideoId: "abc", signalVideoId: "xyz"));
-    }
-
-    [Fact]
-    public void AdReadyDoesNotCancel()
-    {
-        Assert.Equal(StreamEndAction.Ignore, StreamEndGate.OnPlayback(
-            alreadyScheduled: true, contentReady: true, isAd: true,
-            scheduledVideoId: "abc", signalVideoId: "abc"));
-        Assert.Equal(StreamEndAction.Ignore, StreamEndGate.OnPlayback(
-            alreadyScheduled: true, contentReady: false, isAd: false,
-            scheduledVideoId: "abc", signalVideoId: "abc"));
-    }
-
     [Fact]
     public void BeginRecordingFailsWhenPreviewIsGone()
     {

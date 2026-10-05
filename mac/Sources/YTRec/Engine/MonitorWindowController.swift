@@ -22,8 +22,10 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
     private var previewWindow: NSWindow?
     private var previewLayer: AVSampleBufferDisplayLayer?
     private var badgeLabel: NSTextField?
+    private var statusOverlay: String?
 
-    var onPlayerEvent: ((String) -> Void)?   // playing / ended / error
+    var onPlayerEvent: ((String) -> Void)?   // error 等既有事件
+    var onSnapshot: ((Bool, Bool, Bool, String) -> Void)?   // ended, ad, content, id
     var onTitle: ((String) -> Void)?
     var onDims: ((Int, Int) -> Void)?        // 來源影片像素尺寸（videoWidth, videoHeight）→ 判斷直/橫式
     var onStopTapped: (() -> Void)?          // 小窗「停止」鈕
@@ -104,6 +106,14 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
     nonisolated static func classifyMessage(_ body: String) -> (title: String?, event: String?) {
         if body.hasPrefix("title:") { return (String(body.dropFirst(6)), nil) }
         return (nil, body)
+    }
+
+    /// `snap:ended,ad,content,id`，三個旗標是 1 或 0，id 可為空。
+    nonisolated static func parseSnap(_ body: String) -> (ended: Bool, ad: Bool, content: Bool, id: String)? {
+        guard body.hasPrefix("snap:") else { return nil }
+        let parts = body.dropFirst(5).split(separator: ",", maxSplits: 3, omittingEmptySubsequences: false)
+        guard parts.count == 4 else { return nil }
+        return (parts[0] == "1", parts[1] == "1", parts[2] == "1", String(parts[3]))
     }
 
     /// 解析影片尺寸回報 `dims:WxH`。前綴不符／欄位非正整數→nil。
@@ -396,7 +406,13 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
     }
 
     /// 更新小窗上的錄製時長。
+    func setStatusOverlay(_ text: String?) {
+        statusOverlay = text
+        if let text { badgeLabel?.stringValue = text }
+    }
+
     func updateElapsed(_ seconds: Double) {
+        guard statusOverlay == nil else { return }
         badgeLabel?.stringValue = Self.badgeText(elapsed: seconds)
     }
 
@@ -428,6 +444,10 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
         guard let body = message.body as? String else { return }
+        if let snap = Self.parseSnap(body) {
+            onSnapshot?(snap.ended, snap.ad, snap.content, snap.id)
+            return
+        }
         if let d = Self.parseDims(body) { onDims?(d.w, d.h); return }
         let m = Self.classifyMessage(body)
         if let title = m.title {
@@ -485,8 +505,6 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
       document.documentElement.appendChild(style);
       var sentTitle = false;
       var sentDims = '';
-      var sawEnded = false;
-      var lastVid = '';
       function lcfAdShowing() {
         var node = document.getElementById('movie_player');
         return !!(node && node.classList && (node.classList.contains('ad-showing') || node.classList.contains('ad-interrupting')));
@@ -498,10 +516,14 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
           return (d && d.video_id) || '';
         } catch (e) { return ''; }
       }
-      function lcfPostEnded() {
-        if (lcfAdShowing()) return;
-        sawEnded = true;
-        window.webkit.messageHandlers.lcf.postMessage('ended:' + lcfVideoId());
+      function lcfPostSnap(v) {
+        var mp = document.getElementById('movie_player');
+        var endedState = !!(mp && mp.getPlayerState && mp.getPlayerState() === 0);
+        var ad = lcfAdShowing();
+        var ended = endedState || !!(v && v.ended);
+        var content = !!(v && !ad && !ended && !v.paused && v.readyState >= 3 && v.videoWidth > 0);
+        var id = lcfVideoId() || '';
+        window.webkit.messageHandlers.lcf.postMessage('snap:' + (ended?1:0) + ',' + (ad?1:0) + ',' + (content?1:0) + ',' + id);
       }
       var tick = function () {
         try {
@@ -510,7 +532,7 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
             window.webkit.messageHandlers.lcf.postMessage('title:' + document.title.replace(' - YouTube', ''));
           }
           var v = document.querySelector('video');
-          if (!v) return;
+          if (!v) { lcfPostSnap(null); return; }
           var mp = document.getElementById('movie_player');
           var ad = lcfAdShowing();
           if (ad) {
@@ -536,25 +558,9 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
             }
             try { window.dispatchEvent(new Event('resize')); } catch (e) {}
           }
-          if (v.ended) lcfPostEnded();
-          var vid = lcfVideoId();
-          if (vid && vid !== lastVid) {
-            lastVid = vid;
-            window.webkit.messageHandlers.lcf.postMessage('videoid:' + vid);
-          }
-          // 假結束之後同一支正片還在播才回報 ready。v.ended 時不回報，避免把真的結束取消掉。
-          var contentReady = !ad && !v.ended && !v.paused && v.currentTime > 0 && v.readyState >= 3 && v.videoWidth > 0;
-          if (sawEnded && contentReady) {
-            sawEnded = false;
-            window.webkit.messageHandlers.lcf.postMessage('ready:' + lcfVideoId());
-          }
+          lcfPostSnap(v);
           if (!v.__lcfHooked) {
             v.__lcfHooked = true;
-            v.addEventListener('playing', function () {
-              if (lcfAdShowing()) return;
-              window.webkit.messageHandlers.lcf.postMessage('playing');
-            });
-            v.addEventListener('ended', function () { lcfPostEnded(); });
             v.addEventListener('error', function () { window.webkit.messageHandlers.lcf.postMessage('error'); });
           }
         } catch (e) {}

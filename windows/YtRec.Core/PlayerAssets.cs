@@ -122,22 +122,14 @@ public static class PlayerAssets
                     post({ type: 'ytrec', rect: [px / W, py / H, pw / W, ph / H] });
                   }
                 }
-                if (!v.__ytrecHooked) {
-                  v.__ytrecHooked = true;
-                  // Ad and content share one <video>. An ad's end must not look like the stream ended.
-                  v.addEventListener('ended', function () { if (!adShowing()) post({ type: 'ytrec', state: 'ended', videoId: currentVideoId() }); });
-                }
               }
-              // Player state 0 means this video has ended. Don't also report ready in that same tick,
-              // or the host would cancel the stop and then schedule it again every second.
               var endedState = !!(p && p.getPlayerState && p.getPlayerState() === 0);
-              var ready = !!(v && !ad && !endedState && !v.paused && v.currentTime > 0 && v.readyState >= 3 && v.videoWidth > 0);
-              post({ type: 'ytrec', ad: ad, ready: ready, videoId: currentVideoId() });
+              var ended = endedState || !!(v && v.ended);
+              var content = !!(v && !ad && !ended && !v.paused && v.readyState >= 3 && v.videoWidth > 0);
+              post({ type: 'ytrec', snap: { ended: ended, ad: ad, content: content, id: currentVideoId() || '' } });
               if (p) {
                 if (!ad && p.unMute) p.unMute();
                 if (!ad && p.setPlaybackQualityRange) p.setPlaybackQualityRange('hd1080', 'hd1080'); // pin 1080p
-                // 0=ENDED. Don't report it during an ad. The host treats it as a 20s candidate.
-                if (endedState && !adShowing()) post({ type: 'ytrec', state: 'ended', videoId: currentVideoId() });
               }
               ensureTheater();
             } catch (e) {}

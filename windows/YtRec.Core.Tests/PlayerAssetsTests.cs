@@ -36,7 +36,7 @@ public class PlayerAssetsTests
         Assert.Contains("setPlaybackQualityRange('hd1080', 'hd1080')", s); // 1080p pinned
         Assert.Contains("rect: [px / W", s);                              // crop to the PICTURE rect (no pillarbox)
         Assert.Contains("dims: [v.videoWidth, v.videoHeight]", s);         // source dims → orientation
-        Assert.Contains("state: 'ended'", s);                             // stream-end signal
+        Assert.Contains("snap:", s);                                      // one snapshot per second
     }
 
     [Fact]
@@ -45,12 +45,10 @@ public class PlayerAssetsTests
         var s = PlayerAssets.FillPlayAndReportScript;
         Assert.Contains("ad-showing", s);            // detects an ad on the player
         Assert.Contains("ytp-ad-skip-button", s);    // auto-clicks the skip control
-        Assert.Contains("ad: ad", s);                // reports ad state to the host
-        Assert.Contains("ready: ready", s);          // reports content-ready so the host gates the writer
-        Assert.Contains("if (!adShowing()) post({ type: 'ytrec', state: 'ended', videoId: currentVideoId() });", s);
-        Assert.Contains("endedState && !adShowing()", s);
-        Assert.Contains("!endedState && !v.paused", s);
-        Assert.Contains("videoId: currentVideoId()", s);
+        Assert.Contains("ad: ad", s);                // snapshot includes the ad flag
+        Assert.Contains("content: content", s);      // snapshot includes real-content
+        Assert.Contains("id: currentVideoId() || ''", s);
+        Assert.Contains("ended: ended", s);
     }
 
     [Fact]

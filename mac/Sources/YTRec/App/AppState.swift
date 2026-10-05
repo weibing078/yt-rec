@@ -24,9 +24,13 @@ final class AppState: ObservableObject {
     private var trackAEngine: YtDlpEngine?
     private var recorder: RecorderEngine?
     private let monitor = MonitorWindowController()
-    private var playerEndedStopScheduled = false
-    private var playerEndedStopTask: Task<Void, Never>?
-    private var endedStopVideoId: String?
+    private var snapshotTimer: Timer?
+    private var snapshotJobId: UUID?
+    private var latestSnapshot: PlayerSnapshot?
+    private var candidateStart: Date?
+    private var extendedAdSeconds = 0
+    private var lastSnapshotUi = ""
+    @Published var previewShowsEnded = false
     private var lastDiskCheckSec: Double = 0     // 側錄中磁碟檢查節流（每 60 秒）
     private var stoppingTrackB = false           // 防重入：.finalizing 仍屬 isActive，收尾期間 onElapsed tick 可能再次觸發 stopTrackB
 
@@ -140,65 +144,6 @@ final class AppState: ObservableObject {
         elapsedSec - lastCheckSec >= 60
     }
 
-    enum StreamEndAction: Equatable { case ignore, scheduleStop, cancelScheduledStop, stopNow }
-
-    struct PlayerSignal: Equatable {
-        var kind: String
-        var videoId: String?
-        /// `ready:<id>`／`ended:<id>`／`videoid:<id>`；其他字串整段當事件、沒有 id。
-        static func parse(_ event: String) -> PlayerSignal {
-            for prefix in ["ready:", "ended:", "videoid:"] where event.hasPrefix(prefix) {
-                let id = String(event.dropFirst(prefix.count))
-                let kind = prefix == "videoid:" ? "videoid" : String(prefix.dropLast())
-                return PlayerSignal(kind: kind, videoId: id.isEmpty ? nil : id)
-            }
-            return PlayerSignal(kind: event, videoId: nil)
-        }
-    }
-
-    /// 播放器訊號怎麼處理。ended 只有「正在寫檔、且尚未排程」才排 20 秒收工。
-    /// 已排程時：videoId 變了立刻收工；同一支且 ready（正片、非廣告）才取消。playing 不取消。
-    nonisolated static func streamEndAction(
-        event: String,
-        recordingToFile: Bool,
-        alreadyScheduled: Bool,
-        scheduledVideoId: String? = nil,
-        signalVideoId: String? = nil,
-        contentReady: Bool = false
-    ) -> StreamEndAction {
-        if event == "ended" {
-            if recordingToFile && !alreadyScheduled { return .scheduleStop }
-            return .ignore
-        }
-        guard alreadyScheduled else { return .ignore }
-        if videoIdsDiffer(scheduledVideoId, signalVideoId) { return .stopNow }
-        if event == "ready", contentReady, videoIdsMatch(scheduledVideoId, signalVideoId) {
-            return .cancelScheduledStop
-        }
-        return .ignore
-    }
-
-    nonisolated static func videoIdsDiffer(_ scheduled: String?, _ current: String?) -> Bool {
-        guard let scheduled, let current, !scheduled.isEmpty, !current.isEmpty else { return false }
-        return scheduled != current
-    }
-
-    nonisolated static func videoIdsMatch(_ scheduled: String?, _ current: String?) -> Bool {
-        guard let scheduled, !scheduled.isEmpty else { return false }
-        return scheduled == current
-    }
-
-    /// 播放器回報事件時是否該排程「20 秒後自動收工」。
-    /// 只有「真的在寫檔」且「尚未排程過」的 ended 才算；預覽/定位階段的假 ended 不理會。
-    nonisolated static func shouldScheduleEndedStop(event: String, recordingToFile: Bool, alreadyScheduled: Bool) -> Bool {
-        streamEndAction(event: event, recordingToFile: recordingToFile, alreadyScheduled: alreadyScheduled) == .scheduleStop
-    }
-
-    /// 20 秒到了還能不能收這一場：必須仍是當時那一個 job，而且還在寫檔。
-    nonisolated static func shouldCommitPlayerEndedStop(sameJob: Bool, recordingToFile: Bool) -> Bool {
-        sameJob && recordingToFile
-    }
-
     /// 收工通知文案（依停止原因）。nativeSucceeded 由 handleTrackAOutcome 另發，這裡回 nil。
     nonisolated static func stopNotification(reason: StopReason, fileName: String) -> (title: String, body: String)? {
         switch reason {
@@ -256,6 +201,7 @@ final class AppState: ObservableObject {
 
     /// 定位完、開始正式寫檔（從目前播放位置往後錄）。下載軌也在此時依設定啟動。
     func beginRecording() {
+        guard !previewShowsEnded else { return }
         guard let j = job, let rec = recorder, case .previewing = j.trackB else { return }
         do {
             try rec.beginWriting()
@@ -274,7 +220,7 @@ final class AppState: ObservableObject {
     /// 取消預覽定位（啟動中或定位中、沒按開始錄就關掉）：停 SCK、關監看、丟掉這場（不產出檔案）。
     func cancelPreview() {
         guard let j = job, isPositioning else { return }
-        cancelPlayerEndedStop()
+        stopSnapshotTimer()
         let rec = recorder
         rec?.markStopping()        // 先標停止，關監看視窗時 SCK 才不會觸發假的「中斷」通知（修審查 #6）
         monitor.close()
@@ -461,36 +407,9 @@ final class AppState: ObservableObject {
                 await rec.updateOutputSize(target)
             }
         }
-        monitor.onPlayerEvent = { [weak self, weak j] event in
+        monitor.onSnapshot = { [weak self] ended, ad, content, id in
             Task { @MainActor in
-                guard let self, let j else { return }
-                let signal = PlayerSignal.parse(event)
-                switch Self.streamEndAction(event: signal.kind,
-                                             recordingToFile: j.trackB.isRecordingToFile,
-                                             alreadyScheduled: self.playerEndedStopScheduled,
-                                             scheduledVideoId: self.endedStopVideoId,
-                                             signalVideoId: signal.videoId,
-                                             contentReady: signal.kind == "ready") {
-                case .cancelScheduledStop:
-                    self.cancelPlayerEndedStop()
-                    j.infoMessage = "播放已恢復，繼續錄影。"
-                case .stopNow:
-                    Log.info("job", "播放器換成另一支影片，立刻收工")
-                    Task { await self.stopTrackB(reason: .playerEnded) }
-                case .scheduleStop:
-                    self.playerEndedStopScheduled = true
-                    self.endedStopVideoId = signal.videoId
-                    j.infoMessage = "直播畫面已結束，20 秒後自動收工側錄。"
-                    Log.info("job", "播放器回報 ended，20 秒後自動停止側錄")
-                    let scheduledJob = j
-                    self.playerEndedStopTask = Task { [weak self] in
-                        do { try await Task.sleep(nanoseconds: 20_000_000_000) } catch { return }
-                        guard !Task.isCancelled else { return }
-                        await self?.commitPlayerEndedStop(for: scheduledJob)
-                    }
-                case .ignore:
-                    break
-                }
+                self?.latestSnapshot = PlayerSnapshot(ended: ended, ad: ad, content: content, id: id, receivedAt: Date())
             }
         }
         monitor.onPosition = { [weak j] behind, window in
@@ -570,6 +489,7 @@ final class AppState: ObservableObject {
                     }
                     j.trackB = .previewing     // SCK 跑起來了，進入可倒帶定位狀態（還沒寫檔）
                     j.infoMessage = "倒帶到要的點，再按「從這裡開始錄影」。"
+                    self.startSnapshotTimer(for: j)
                 }
             } catch {
                 await MainActor.run {
@@ -589,7 +509,7 @@ final class AppState: ObservableObject {
     enum StopReason { case nativeSucceeded, playerEnded, userStopped, durationLimit, lowDisk }
 
     func stopTrackB(reason: StopReason) async {
-        cancelPlayerEndedStop()
+        stopSnapshotTimer()
         guard !stoppingTrackB else { return }   // 收尾中（.finalizing）期間擋掉重入的 tick，避免對同一 recorder 重複 stop
         guard let j = job, let rec = recorder, j.trackB.isActive else { return }
         stoppingTrackB = true
@@ -637,7 +557,7 @@ final class AppState: ObservableObject {
 
     private func finalizeRecorderFile(_ j: JobViewModel) async {
         // 錯誤收尾也要清掉 20 秒收工，否則旗標留著，下一場的 ended 會被吃掉。
-        cancelPlayerEndedStop()
+        stopSnapshotTimer()
         // SCK 中斷等致命錯誤時盡力保檔
         guard let rec = recorder else { return }
         let finalURL = j.jobDir.appendingPathComponent("側錄_\(FileUtil.sanitize(j.title))_中斷保存.mp4")
@@ -775,7 +695,7 @@ final class AppState: ObservableObject {
     // MARK: - App 結束前保檔
 
     func emergencyFinalize() async {
-        cancelPlayerEndedStop()
+        stopSnapshotTimer()
         switch Self.terminationAction(isRecording: isRecording, isPositioning: isPositioning) {
         case .finalizeAndSave:
             Log.info("app", "App 結束前收工側錄")
@@ -791,28 +711,63 @@ final class AppState: ObservableObject {
         trackAEngine?.cancel()
     }
 
-    /// 取消尚未執行的「20 秒後收工」。停錄、錯誤收尾、取消預覽、App 結束都要呼叫，
-    /// 避免舊任務醒來後停掉下一場，或讓旗標把下一場的自動收工吃掉。
-    private func cancelPlayerEndedStop() {
-        playerEndedStopTask?.cancel()
-        playerEndedStopTask = nil
-        playerEndedStopScheduled = false
-        endedStopVideoId = nil
+    private func startSnapshotTimer(for job: JobViewModel) {
+        stopSnapshotTimer()
+        snapshotJobId = job.id
+        let jobId = job.id
+        snapshotTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.onSnapshotTick(jobId: jobId) }
+        }
     }
 
-    private func commitPlayerEndedStop(for scheduledJob: JobViewModel) async {
-        guard Self.shouldCommitPlayerEndedStop(sameJob: job === scheduledJob,
-                                                recordingToFile: scheduledJob.trackB.isRecordingToFile) else {
-            // 這一筆已經不該收。下一場若已經在寫檔，它的新排程不要被清掉。
-            let newerRecording = job !== scheduledJob && (job?.trackB.isRecordingToFile ?? false)
-            if !newerRecording {
-                playerEndedStopTask = nil
-                playerEndedStopScheduled = false
-            }
+    private func stopSnapshotTimer() {
+        snapshotTimer?.invalidate()
+        snapshotTimer = nil
+        snapshotJobId = nil
+    }
+
+    /// 計時器回呼：第一行確認還是這一場、而且還在預覽或錄製，否則停掉自己。
+    private func onSnapshotTick(jobId: UUID) {
+        guard job?.id == jobId, isPreviewing || isRecording else {
+            stopSnapshotTimer()
             return
         }
-        // 先卸下 handle，stopTrackB 開頭的 cancel 才不會取消「正在跑的自己」。
-        playerEndedStopTask = nil
-        await stopTrackB(reason: .playerEnded)
+        guard let j = job else { stopSnapshotTimer(); return }
+        let phase: StreamPhase = isRecording ? .recording : .preview
+        let decision = StreamEnd.evaluate(phase: phase, anchorId: j.videoID ?? "", snapshot: latestSnapshot,
+                                          candidateStart: candidateStart, extendedAdSeconds: extendedAdSeconds, now: Date())
+        candidateStart = decision.candidateStart
+        extendedAdSeconds = decision.extendedAdSeconds
+        let mode = decision.stopReason ?? (decision.countdownSeconds != nil ? "countdown" : (decision.previewShowsEnded ? "preview-ended" : "idle"))
+        if mode != lastSnapshotUi {
+            lastSnapshotUi = mode
+            Log.info("job", "播放器快照 \(mode)")
+        }
+        if decision.leaveUiAlone { return }
+        if let reason = decision.stopReason {
+            stopSnapshotTimer()
+            j.infoMessage = reason
+            previewShowsEnded = false
+            monitor.setStatusOverlay(nil)
+            Task { await self.stopTrackB(reason: .playerEnded) }
+            return
+        }
+        previewShowsEnded = decision.previewShowsEnded
+        if let seconds = decision.countdownSeconds {
+            let text = "影片即將結束，\(seconds) 秒後收工"
+            j.infoMessage = text
+            monitor.setStatusOverlay(text)
+        } else if decision.previewShowsEnded {
+            j.infoMessage = "影片已結束"
+            monitor.setStatusOverlay("影片已結束")
+        } else {
+            monitor.setStatusOverlay(nil)
+            let msg = j.infoMessage ?? ""
+            if isRecording && (msg.contains("秒後收工") || msg == "影片已結束") {
+                j.infoMessage = nil
+            } else if isPreviewing && msg == "影片已結束" {
+                j.infoMessage = "倒帶到要的點，再按「從這裡開始錄影」。"
+            }
+        }
     }
 }

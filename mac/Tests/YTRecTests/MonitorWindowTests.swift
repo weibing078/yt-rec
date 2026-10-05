@@ -110,11 +110,10 @@ final class InjectedJSSmokeTests: XCTestCase {
         XCTAssertTrue(js.contains("#movie_player"))                 // 撐滿播放器容器鏈（黑邊修法）
         XCTAssertTrue(js.contains("'hd1080'"))                      // 鎖 1080p
         XCTAssertTrue(js.contains("v.muted = false"))              // 強制解除靜音
-        XCTAssertTrue(js.contains("postMessage('ended:' + lcfVideoId())")) // ended 帶 videoId
-        XCTAssertTrue(js.contains("if (lcfAdShowing()) return;"))  // 廣告中不把 ended／playing 當正片
-        XCTAssertTrue(js.contains("postMessage('ready:' + lcfVideoId())"))
-        XCTAssertTrue(js.contains("if (v.ended) lcfPostEnded();")) // 停在 ended 時每秒再送，才能再排程
+        XCTAssertTrue(js.contains("postMessage('snap:'"))          // 每秒一份快照
         XCTAssertTrue(js.contains("getVideoData"))
+        XCTAssertFalse(js.contains("sawEnded"))
+        XCTAssertFalse(js.contains("lcfPostEnded"))
         XCTAssertTrue(js.contains("'title:'"))                      // 標題回報
         XCTAssertTrue(js.contains("'dims:'"))                       // 來源尺寸回報（直式偵測靠它）
         XCTAssertTrue(js.contains("ad-showing"))                    // 偵測廣告（沒買 Premium 也不錄到廣告）

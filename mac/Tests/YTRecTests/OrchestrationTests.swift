@@ -72,50 +72,6 @@ final class DiskCheckThrottleTests: XCTestCase {
     }
 }
 
-final class EndedStopScheduleTests: XCTestCase {
-    func testSchedulesWhenRecordingAndFresh() {
-        XCTAssertTrue(AppState.shouldScheduleEndedStop(event: "ended", recordingToFile: true, alreadyScheduled: false))
-    }
-    func testNotWhilePositioning() {
-        // 預覽/定位階段倒帶到 DVR 邊界的假 ended 不收工
-        XCTAssertFalse(AppState.shouldScheduleEndedStop(event: "ended", recordingToFile: false, alreadyScheduled: false))
-    }
-    func testNotIfAlreadyScheduled() {
-        XCTAssertFalse(AppState.shouldScheduleEndedStop(event: "ended", recordingToFile: true, alreadyScheduled: true))
-    }
-    func testIgnoresOtherEvents() {
-        XCTAssertFalse(AppState.shouldScheduleEndedStop(event: "playing", recordingToFile: true, alreadyScheduled: false))
-    }
-    func testSameVideoAndReadyCancelsStop() {
-        XCTAssertEqual(AppState.streamEndAction(event: "ready", recordingToFile: true, alreadyScheduled: true,
-                                                scheduledVideoId: "abc", signalVideoId: "abc", contentReady: true),
-                       .cancelScheduledStop)
-    }
-    func testDifferentVideoStopsImmediately() {
-        XCTAssertEqual(AppState.streamEndAction(event: "videoid", recordingToFile: true, alreadyScheduled: true,
-                                                scheduledVideoId: "abc", signalVideoId: "xyz", contentReady: false),
-                       .stopNow)
-        XCTAssertEqual(AppState.streamEndAction(event: "ready", recordingToFile: true, alreadyScheduled: true,
-                                                scheduledVideoId: "abc", signalVideoId: "xyz", contentReady: true),
-                       .stopNow)
-    }
-    func testAdReadyDoesNotCancel() {
-        XCTAssertEqual(AppState.streamEndAction(event: "ready", recordingToFile: true, alreadyScheduled: true,
-                                                scheduledVideoId: "abc", signalVideoId: "abc", contentReady: false),
-                       .ignore)
-    }
-    func testPlayingDoesNotCancel() {
-        XCTAssertEqual(AppState.streamEndAction(event: "playing", recordingToFile: true, alreadyScheduled: true,
-                                                scheduledVideoId: "abc", signalVideoId: "abc", contentReady: true),
-                       .ignore)
-    }
-    func testCommitOnlyForTheSameJobStillRecording() {
-        XCTAssertTrue(AppState.shouldCommitPlayerEndedStop(sameJob: true, recordingToFile: true))
-        XCTAssertFalse(AppState.shouldCommitPlayerEndedStop(sameJob: false, recordingToFile: true))
-        XCTAssertFalse(AppState.shouldCommitPlayerEndedStop(sameJob: true, recordingToFile: false))
-    }
-}
-
 final class StopNotificationTests: XCTestCase {
     func testEachReasonHasDistinctText() {
         XCTAssertEqual(AppState.stopNotification(reason: .durationLimit, fileName: "a.mp4")?.title, "已達側錄時長上限，自動保存收工")
