@@ -1,9 +1,9 @@
 {
-  "version": "1.1.2",
-  "pubDate": "2026-07-11",
+  "version": "1.1.3",
+  "pubDate": "2026-10-09",
   "notes": {
-    "zh-Hant": "穩定性修復版：修復 31 個潛在問題——錄影收檔更可靠、磁碟不足保護、多螢幕支援、退出時不再殘留背景下載",
-    "en": "Stability release: 31 fixes — reliable finalize, low-disk guard, multi-monitor support, no orphaned downloads on quit"
+    "zh-Hant": "正片確認後才開錄；中插廣告照錄並寫時段；進行中或尚未開播改走側錄；Windows 裁切不穩或尺寸變了會停下來留檔",
+    "en": "Wait for real content before recording; keep mid-roll ads and list them; switch live or upcoming downloads to side-record; Windows stops and keeps the partial file when the crop or capture size is unstable"
   },
   "mac": {
     "url": "https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec.dmg",

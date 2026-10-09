@@ -8,7 +8,7 @@
   -SkipBuild reuses the existing publish folder (just re-runs Inno Setup).
 #>
 param(
-  [string]$Version = "1.1.2",
+  [string]$Version = "1.1.3",
   [switch]$SkipBuild
 )
 $ErrorActionPreference = "Stop"
