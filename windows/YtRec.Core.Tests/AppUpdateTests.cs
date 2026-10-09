@@ -42,6 +42,22 @@ public class AppUpdateTests
     }
 
     [Theory]
+    [InlineData("https://github.com/weibing078/yt-rec/releases/download/v1.1.2/YT-Rec.zip", null, "https://github.com/weibing078/yt-rec/releases/download/v1.1.2/YT-Rec.zip")]
+    [InlineData("https://github.com/weibing078/yt-rec/releases", null, "https://github.com/weibing078/yt-rec/releases")]
+    [InlineData("https://evil.example/payload.exe", "https://ytrec.resonaframe.com/download", "https://ytrec.resonaframe.com/download")]
+    [InlineData("http://github.com/weibing078/yt-rec/releases/x.zip", "http://ytrec.resonaframe.com/", "https://ytrec.resonaframe.com/")]
+    [InlineData("https://github.com/weibing078/other/releases/x.zip", "https://evil.example/", "https://ytrec.resonaframe.com/")]
+    [InlineData("https://github.com.evil.com/weibing078/yt-rec/releases/x.zip", null, "https://ytrec.resonaframe.com/")]
+    [InlineData("https://user:pw@github.com/weibing078/yt-rec/releases/x.zip", null, "https://ytrec.resonaframe.com/")]
+    [InlineData("file:///etc/passwd", null, "https://ytrec.resonaframe.com/")]
+    public void SafeOpenUrlLocksPath(string? url, string? page, string expected)
+        => Assert.Equal(expected, AppUpdate.SafeOpenUrl(url, page));
+
+    [Fact]
+    public void OpenableRejectsATamperedStoredLink()
+        => Assert.Equal(AppUpdate.Homepage, AppUpdate.Openable("https://github.com/someone/else/releases/x.zip"));
+
+    [Theory]
     [InlineData(null)]
     [InlineData("")]
     [InlineData("not json")]

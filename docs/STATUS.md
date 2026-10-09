@@ -1,7 +1,26 @@
 # Status & Resume Point
 
-> Updated: 2026-06-22. Living doc — the place to pick up from. Per-feature detail lives
-> in [shared/spec/parity-matrix.md](../shared/spec/parity-matrix.md).
+> 現況：2026-10-09（UTC+8）。接力看 [HANDOFF.md](HANDOFF.md)。規則在 [../AGENTS.md](../AGENTS.md)。
+> 功能對照在 [shared/spec/parity-matrix.md](../shared/spec/parity-matrix.md)。
+> 2026-06-22 之後的段落是歷史快照，不要當成現況。
+
+## 2026-10-09 工作樹（尚未 commit）
+
+分支 `fix/2026-10-improvements`，HEAD `5c60c0fb0ea6`（已在 origin）。第一波播放器快照已提交。第二波與第三波只在工作樹。
+
+已在程式裡、而且有測試或實錄：
+
+- Mac 正片閘門：新鮮、非廣告、內容在播才進預覽；45 秒沒確認就放行並在畫面上說明。兩句都在 2026-10-09 的簽名 App 日誌裡出現過。
+- Windows 裁切要連續兩次相同才開 ffmpeg。沒有畫面範圍就停，不錄整頁。lofi 實機停在「預覽沒有新畫面，先不要開錄」。
+- 中插廣告照錄，時段寫在 `<檔名>.廣告時段.txt`。0 段不寫檔。格式檔有由 Windows 程式寫出；時間是檢查程式餵的，不是從正在播的廣告聽出來的。這台環境播正片時 `getAdState()` 為 -1。
+- 更新連結只開 GitHub releases 路徑，或 `ytrec.resonaframe.com` 上的 https。其餘改開首頁。有單元測試，按鈕沒有點過。
+- Windows x264：crf 23。長邊 ≤1280 為 6M／12M，否則 12M／24M。1080p 與 720p 實錄的 SEI 都對過。沒有加 `-g 60`。
+- Windows 時長、畫質、輸出資料夾、最近 5 筆會記住。進行中或尚未開播按下載會改走側錄並說明（無介面檢查寫出那句話，畫面按鈕沒點過）。舊資料夾未收工錄影修得回來。擷取尺寸一變走既有錯誤收尾並留下部分檔。
+- 官網文字已對照上述事實。本機頁面看過。沒有部署。倉庫沒有 `web/og.png`。
+
+驗證（工作樹，不是 HEAD）：Mac `swift test` 195 通過、1 略過、0 失敗（12:32）。Windows Core `dotnet test` 252 通過、0 失敗（12:32）。Windows App 能編譯，修復掃描跑完（count=0）。
+
+還沒做、而且要另批准才做：commit、push、PR、發版、改版本號、部署官網、把這次簽名的 Mac App 再送公證。
 
 ## Known limits (2026-10-05, not fixed this round)
 - 同一支影片的 id 從頭重播，會被當成還是這一支，錄影繼續，不會收工。
@@ -14,10 +33,10 @@
 Paste URL → click **側錄** → opens a live **preview** (no file yet); for a live stream a **DVR rewind
 scrubber** + nudge buttons let you rewind, then **「從這裡開始錄影」** records clean **1920×1080** (or
 **1080×1920** vertical, full-frame), **pure video with no YouTube UI**, **complete**, isolated audio — and
-**never an ad** (auto-skip + content gate, no-Premium). The capture window is **invisible like Mac** and
+**pre-roll is waited out**; a mid-roll stays in the file and is listed beside it when the new sidecar code is running. The capture window is **invisible like Mac** and
 **loads off-screen so YouTube never flashes** on startup. Click **停止** → file in the **recent list**;
-**下載** grabs a VOD. Mica window + real app icon; binaries bundled. Mac records 1080p+vertical via SCK.
-Signing skipped per owner.
+**下載** grabs a finished video and switches a live or upcoming one to side-record preview. Mica window + real app icon; binaries bundled. Mac records 1080p+vertical via SCK.
+Mac is signed and notarized. The Windows installer is unsigned.
 
 ## Built 2026-06-22 (rewind preview + ad gate + no-flash startup) — all verified, **uncommitted**
 - **Live rewind recording (Windows, NEW)** — 側錄 → preview (no file) → DVR scrubber/nudge rewind →
@@ -25,8 +44,8 @@ Signing skipped per owner.
   `CaptureController` `PrepareAsync`/`BeginRecording` split; `RecordingSession` preview-vs-write split;
   `PreviewReady` gate. **Verified on real Win11**: `--previewseek` on a VOD (360 frames) + **live Al Jazeera**
   (DVR 43183 s, seek 120→122.7 s, 1080p), and a **GUI UIA walkthrough** (側錄→scrubber@live→從這裡開始錄影→
-  停止→1.81 MB 1080p Al Jazeera file). Edge: a stream with a malformed DVR range (lofi) renders only 1
-  off-screen frame — known limitation (see VERIFIED-BEHAVIOR §11).
+  停止→1.81 MB 1080p Al Jazeera file). Edge: lofi on 2026-10-09 stopped with no mp4 and the
+  message 「預覽沒有新畫面，先不要開錄。請確認播放器有在動。」 (`build/logs/goal-win-lofi3.log`).
 - **Ad gate, no-Premium (both platforms)** — injected script auto-skips ads + mutes them; Windows writer
   gates on `contentReady`. Win11-verified gate; backported to mac `playerTakeoverJS`. L1 smoke tests both.
 - **No-flash startup (Windows)** — the off-screen player is **born off-screen** (not at 0,0 then moved), so

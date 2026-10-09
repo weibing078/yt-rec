@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>YT Rec — 單獨錄 YouTube 直播的 Mac 工具，不賠上你的時間</title>
-<meta name="description" content="一個幫你省時間的小工具：六小時的直播不用整段下載、不用佔住螢幕乾等。開錄後電腦照常工作，只錄那一個直播視窗，連聲音都不會混到別的 App。直播或一般 YouTube 影片都能錄，免費開源。">
+<title>YT Rec — 單獨錄 YouTube 直播的 Mac／Windows 工具</title>
+<meta name="description" content="一個幫你省時間的小工具：六小時的直播不用整段下載、不用佔住螢幕乾等。開錄後電腦照常工作，只錄那一個直播視窗。Mac 與 Windows 11 只收該視窗的聲音；Windows 10 會錄到全系統聲音。免費開源。">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <meta name="theme-color" content="#0d0e12">
 <link rel="canonical" href="https://ytrec.resonaframe.com/">
@@ -16,15 +16,15 @@
 <meta property="og:site_name" content="YT Rec">
 <meta property="og:locale" content="zh_TW">
 <meta property="og:title" content="YT Rec — 搶錄直播，不賠上你的時間">
-<meta property="og:description" content="只錄那一個 YouTube 直播視窗的畫面與聲音，邊錄邊工作，不會錄到電腦其他聲音。直播或一般影片都能錄，免費開源。">
+<meta property="og:description" content="只錄那一個 YouTube 直播視窗。Mac 與 Windows 11 只收該視窗的聲音；Windows 10 會錄到全系統聲音。邊錄邊工作，免費開源。">
 <meta property="og:url" content="https://ytrec.resonaframe.com/">
 <meta property="og:image" content="https://ytrec.resonaframe.com/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="YT Rec — 單獨錄一個 YouTube 直播視窗的 Mac 工具">
+<meta property="og:image:alt" content="YT Rec — 單獨錄一個 YouTube 直播視窗，Mac 與 Windows 都有">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="YT Rec — 搶錄直播，不賠上你的時間">
-<meta name="twitter:description" content="只錄那一個 YouTube 直播視窗的畫面與聲音，邊錄邊工作，不會錄到電腦其他聲音。直播或一般影片都能錄，免費開源。">
+<meta name="twitter:description" content="只錄那一個 YouTube 直播視窗。Mac 與 Windows 11 只收該視窗的聲音；Windows 10 會錄到全系統聲音。邊錄邊工作，免費開源。">
 <meta name="twitter:image" content="https://ytrec.resonaframe.com/og.png">
 
 <script type="application/ld+json">
@@ -52,7 +52,7 @@
       "softwareVersion": "1.1.2",
       "datePublished": "2026-06-22",
       "inLanguage": "zh-Hant",
-      "description": "YT Rec（YT快錄）是一個 macOS／Windows 桌面工具，只錄下單一 YouTube 直播視窗的畫面與聲音，讓你邊錄邊用電腦工作，而且不會錄到其他 App 的聲音。直播或一般 YouTube 影片都能錄，特別適合搶錄超長或進行中的直播。",
+      "description": "YT Rec（YT快錄）是一個 macOS／Windows 桌面工具，只錄下單一 YouTube 直播視窗的畫面。Mac 與 Windows 11 只收該視窗的聲音；Windows 10 會錄到全系統聲音。已結束的影片可下載，進行中或尚未開播改開側錄預覽。",
       "screenshot": "https://ytrec.resonaframe.com/app-macos.png",
       "image": "https://ytrec.resonaframe.com/og.png",
       "license": "https://www.apache.org/licenses/LICENSE-2.0",
@@ -61,9 +61,9 @@
       "author": { "@type": "Person", "name": "weibing078", "url": "https://github.com/weibing078" },
       "featureList": [
         "只擷取單一 YouTube 直播視窗，疊在上面的視窗不會被錄進去",
-        "只收該視窗的聲音，不會混入電腦其他 App 的聲音",
+        "Mac 與 Windows 11 只收該視窗的聲音；Windows 10 會錄到全系統聲音",
         "可見、可置頂、可縮放的浮動監看小窗",
-        "進行中直播與已結束影片智慧判斷（側錄或下載）",
+        "已結束的影片可下載；進行中或尚未開播改開側錄預覽",
         "fMP4 抗崩潰切片，可長時間錄製"
       ]
     },
@@ -72,7 +72,7 @@
       "name": "如何用 YT Rec 錄製 YouTube 直播",
       "inLanguage": "zh-Hant",
       "step": [
-        { "@type": "HowToStep", "position": 1, "name": "貼上直播網址", "text": "把 YouTube 直播連結貼進去，按「立即開錄」。它會自動判斷是進行中直播還是已結束影片。" },
+        { "@type": "HowToStep", "position": 1, "name": "貼上直播網址", "text": "貼上 YouTube 網址。已結束的影片按下載；進行中或尚未開播會改開側錄預覽，再按「從這裡開始錄影」。" },
         { "@type": "HowToStep", "position": 2, "name": "邊錄邊工作", "text": "浮動小窗顯示正在錄的畫面，可置頂、可縮到背景；你照常用電腦，疊在上面的視窗不會被錄進去。" },
         { "@type": "HowToStep", "position": 3, "name": "錄完就有檔案", "text": "錄到的就是一個完整檔案，存在你指定的輸出資料夾，之後要怎麼用都隨你。" }
       ]
@@ -82,7 +82,7 @@
       "@id": "https://ytrec.resonaframe.com/#faq",
       "mainEntity": [
         { "@type": "Question", "name": "用 YT Rec 錄 YouTube 直播合法嗎？", "acceptedAnswer": { "@type": "Answer", "text": "YT Rec 只是一個錄製工具。請只錄製你有權錄製、或在合理使用範圍內的內容；是否遵守 YouTube 服務條款與當地法律，由使用者自行負責。" } },
-        { "@type": "Question", "name": "錄製時會錄到我電腦其他 App 的聲音嗎？", "acceptedAnswer": { "@type": "Answer", "text": "不會。它只收那一個直播視窗 App 的聲音，電腦其他 App 的聲音、通知音都不會混進去，已用實機測試驗證零殘留。" } },
+        { "@type": "Question", "name": "錄製時會錄到我電腦其他 App 的聲音嗎？", "acceptedAnswer": { "@type": "Answer", "text": "Mac 與 Windows 11 只收該視窗的聲音。Windows 11 實機量測時，其他程式的聲音被壓低約 33 dB。Windows 10 沒有這項隔離，會錄到全系統聲音。" } },
         { "@type": "Question", "name": "YT Rec 要錢嗎？", "acceptedAnswer": { "@type": "Answer", "text": "完全免費、開源（Apache-2.0 授權）。" } },
         { "@type": "Question", "name": "YT Rec 有 Windows 版嗎？", "acceptedAnswer": { "@type": "Answer", "text": "macOS 與 Windows 版都已上線。Windows 為安裝程式（一鍵安裝、建立捷徑、可從「設定 ▸ 應用程式」移除），因尚未程式碼簽章，第一次開啟需在 SmartScreen 點「更多資訊 → 仍要執行」。" } }
       ]
@@ -391,7 +391,7 @@
     <div>
       <span class="hero-badge"><span class="dot"></span><span data-i18n="hero.badge">開源 · 免費 · Mac + Windows 已上線</span></span>
       <h1 data-i18n="hero.title">搶錄直播，<span class="hl">不賠上你的時間</span>。</h1>
-      <p class="sub" data-i18n="hero.sub">六小時的直播不用整段下載、也不用佔住螢幕乾等。開錄後電腦照常工作，只錄那一個直播視窗，連聲音都不會混到別的 App。直播或一般 YouTube 影片都能錄。</p>
+      <p class="sub" data-i18n="hero.sub">六小時的直播不用整段下載、也不用佔住螢幕乾等。開錄後電腦照常工作，只錄那一個直播視窗。Mac 與 Windows 11 只收該視窗的聲音；Windows 10 會錄到全系統聲音。直播或一般 YouTube 影片都能錄。</p>
       <div class="hero-cta">
         <a class="btn btn-primary" href="https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec.dmg">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.5 2.6c.1 1-.3 2-1 2.8-.7.8-1.7 1.4-2.7 1.3-.1-1 .4-2 1-2.7.7-.8 1.8-1.4 2.7-1.4zM19 17.3c-.5 1.1-.7 1.6-1.3 2.6-.9 1.4-2.1 3.1-3.7 3.1-1.4 0-1.7-.9-3.6-.9s-2.3.9-3.6.9c-1.6 0-2.8-1.6-3.6-3-2.4-3.7-2.6-8.1-1.2-10.4 1-1.7 2.6-2.7 4.1-2.7 1.5 0 2.5 1 3.7 1 1.2 0 1.9-1 3.7-1 1.3 0 2.7.7 3.7 2-3.3 1.8-2.7 6.4 1.4 8.4z"/></svg>
@@ -473,7 +473,7 @@
       <h2 data-i18n="how.title">三步，直播立刻錄下來。</h2>
     </div>
     <div class="steps">
-      <div class="step"><div class="n">1</div><h3 data-i18n="how.s1.t">貼上直播網址</h3><p data-i18n="how.s1.d">把 YouTube 直播連結貼進去，按「立即開錄」。它會自動判斷是進行中直播還是已結束影片。</p></div>
+      <div class="step"><div class="n">1</div><h3 data-i18n="how.s1.t">貼上直播網址</h3><p data-i18n="how.s1.d">貼上 YouTube 網址。已結束的影片按下載；進行中或尚未開播會改開側錄預覽，再按「從這裡開始錄影」。</p></div>
       <div class="step"><div class="n">2</div><h3 data-i18n="how.s2.t">邊錄邊工作</h3><p data-i18n="how.s2.d">一個浮動小窗顯示正在錄的畫面，可置頂、可縮到背景。你照常用電腦，疊在上面的視窗不會被錄進去。</p></div>
       <div class="step"><div class="n">3</div><h3 data-i18n="how.s3.t">錄完就有檔案</h3><p data-i18n="how.s3.d">錄到的就是一個完整檔案，存在你指定的輸出資料夾，之後要怎麼用都隨你。</p></div>
     </div>
@@ -489,9 +489,9 @@
     </div>
     <div class="grid3">
       <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M10 9l5 3-5 3z" fill="currentColor" stroke="none"/></svg></div><h3 data-i18n="feat.1.t">只擷取單一視窗</h3><p data-i18n="feat.1.d">只錄那一個直播視窗的內容，其他視窗疊上去也不會被錄進去。</p></div>
-      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.5 6.5a9 9 0 0 1 0 11"/></svg></div><h3 data-i18n="feat.2.t">只收該視窗的聲音</h3><p data-i18n="feat.2.d">只錄那個直播視窗的音訊，電腦其他 App 的聲音、通知音都不會混進去——已實機驗證零殘留。</p></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.5 6.5a9 9 0 0 1 0 11"/></svg></div><h3 data-i18n="feat.2.t">只收該視窗的聲音</h3><p data-i18n="feat.2.d">Mac 與 Windows 11 只收該視窗的聲音。Windows 10 會錄到全系統聲音。</p></div>
       <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg></div><h3 data-i18n="feat.3.t">看得到的監看小窗</h3><p data-i18n="feat.3.d">可移動、可縮放、可置頂的小窗，隨時確認在錄對的串流、沒有黑畫面或卡住。不想盯著可一鍵縮到背景。</p></div>
-      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg></div><h3 data-i18n="feat.4.t">直播、影片都能錄</h3><p data-i18n="feat.4.d">貼進行中的直播就自動螢幕側錄；貼已結束的一般影片就直接抓原始檔，更快、畫質更好。它幫你判斷，你不用選。</p></div>
+      <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg></div><h3 data-i18n="feat.4.t">直播、影片都能錄</h3><p data-i18n="feat.4.d">已結束的影片可下載原始檔。進行中或尚未開播會改開側錄預覽，再按「從這裡開始錄影」。</p></div>
       <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg></div><h3 data-i18n="feat.5.t">抗崩潰長錄</h3><p data-i18n="feat.5.d">fMP4 分段切片＋磁碟與時長保護，6–8 小時、24hr 台也錄得住，意外當機也保得住已錄段落。</p></div>
       <div class="card"><div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" fill="currentColor" stroke="none"/></svg></div><h3 data-i18n="feat.6.t">各平台原生</h3><p data-i18n="feat.6.d">macOS 用 Swift／SwiftUI，Windows 用 C#／.NET——各自原生實作，不是套殼，效能與穩定度到位。</p></div>
     </div>
@@ -629,7 +629,7 @@
     </div>
     <div class="faq-list">
       <details><summary data-i18n="faq.q1">這合法嗎？</summary><div class="a" data-i18n="faq.a1">YT Rec 只是一個錄製工具。請只錄製你有權錄製、或在合理使用範圍內的內容；是否遵守 YouTube 服務條款與當地法律，由使用者自行負責。</div></details>
-      <details><summary data-i18n="faq.q2">會錄到我電腦其他的聲音嗎？</summary><div class="a" data-i18n="faq.a2">不會。它只收那一個直播視窗 App 的聲音，電腦其他 App 的聲音、通知音都不會混進去——已用實機測試驗證零殘留。</div></details>
+      <details><summary data-i18n="faq.q2">會錄到我電腦其他的聲音嗎？</summary><div class="a" data-i18n="faq.a2">Mac 與 Windows 11 只收該視窗的聲音。Windows 11 實機量測時，其他程式的聲音被壓低約 33 dB。Windows 10 會錄到全系統聲音。</div></details>
       <details><summary data-i18n="faq.q3">要錢嗎？</summary><div class="a" data-i18n="faq.a3">完全免費、開源（Apache-2.0）。覺得有用的話，可以到 Ko-fi 請我喝杯咖啡，但完全自由。</div></details>
       <details><summary data-i18n="faq.q4">有 Windows 版嗎？</summary><div class="a" data-i18n="faq.a4">有，已上線（安裝程式，一鍵安裝、建立捷徑、可從「設定 ▸ 應用程式」乾淨移除）。因為還沒做程式碼簽章，第一次開啟會跳 SmartScreen 警告，點「更多資訊 → 仍要執行」即可。下載在上方下載區。</div></details>
     </div>
@@ -658,7 +658,7 @@
 
     "hero.badge":"Open source · Free · Mac + Windows shipping",
     "hero.title":"Grab the stream, <span class=\"hl\">without losing your day</span>.",
-    "hero.sub":"No downloading the whole six-hour stream, no waiting with your screen tied up. Hit record and keep using your computer — it captures only that one stream window, and not even your other apps' sound. Works with live streams or regular YouTube videos.",
+    "hero.sub":"No downloading the whole six-hour stream, no waiting with your screen tied up. Hit record and keep using your computer — it captures only that one stream window. Mac and Windows 11 record only that window's audio; Windows 10 records the whole system mix. Works with live streams or regular YouTube videos.",
     "hero.ctaMac":"Mac","hero.ctaWin":"Windows","hero.github":"GitHub",
     "hero.note":"macOS 14.4+ · Apple Silicon　|　Windows 10/11 (installer)",
     "hero.pin":"Always on top","hero.rec":"Recording",
@@ -677,15 +677,15 @@
     "why.r5.l":"Very long streams","why.r5.p":"Files bloat, fragile","why.r5.y":"Crash-resistant segments + disk/duration guards",
 
     "how.eyebrow":"How it works","how.title":"Three steps, from live to recorded.",
-    "how.s1.t":"Paste the live URL","how.s1.d":"Drop in the YouTube live link and hit record. It auto-detects whether it's a live stream or a finished video.",
+    "how.s1.t":"Paste the URL","how.s1.d":"Paste a YouTube URL. A finished video downloads. A live or not-yet-started video opens a side-record preview, then you press record from here.",
     "how.s2.t":"Keep working","how.s2.d":"A floating window shows what's recording — pin it on top or shrink it away. Keep using your computer; windows you stack on top aren't recorded.",
     "how.s3.t":"You've got the file","how.s3.d":"What you recorded is one complete file in your output folder — do whatever you want with it next.",
 
     "feat.eyebrow":"Features","feat.title":"Every detail built for grabbing live streams.",
     "feat.1.t":"Single-window capture","feat.1.d":"Records only that one stream window — other windows stacked on top aren't captured.",
-    "feat.2.t":"Isolated audio","feat.2.d":"Records only that window's audio — your other apps' sound and notifications stay out. Verified zero bleed on real hardware.",
+    "feat.2.t":"Isolated audio","feat.2.d":"Mac and Windows 11 record only that window's audio. Windows 10 records the whole system mix.",
     "feat.3.t":"A monitor you can see","feat.3.d":"A movable, resizable, pin-on-top window so you can confirm the right stream is recording — not a black screen. Shrink it away anytime.",
-    "feat.4.t":"Live streams or videos","feat.4.d":"Paste a live stream and it screen-captures; paste a regular finished video and it grabs the original file — faster and higher quality. It detects which automatically.",
+    "feat.4.t":"Live streams or videos","feat.4.d":"A finished video can be downloaded. A live or not-yet-started video opens a side-record preview; then you record from here.",
     "feat.5.t":"Crash-resistant long recording","feat.5.d":"fMP4 segments plus disk and duration guards — 6–8 hour and 24/7 channels hold up, and recorded segments survive crashes.",
     "feat.6.t":"Native on each platform","feat.6.d":"Swift/SwiftUI on macOS, C#/.NET on Windows — natively built on each, no cross-platform shell. Performance and stability where it counts.",
 
@@ -712,7 +712,7 @@
 
     "faq.eyebrow":"FAQ","faq.title":"You might be wondering",
     "faq.q1":"Is this legal?","faq.a1":"YT Rec is just a recording tool. Record only content you're entitled to record, or within fair use; complying with YouTube's Terms and your local laws is your responsibility.",
-    "faq.q2":"Will it record my other apps' audio?","faq.a2":"No. It captures only that one stream window's audio — your other apps' sound and notifications stay out. Verified zero bleed on real hardware.",
+    "faq.q2":"Will it record my other apps' audio?","faq.a2":"On Mac and Windows 11, only that window. A Win11 measurement put other apps about 33 dB down. Windows 10 records the whole system mix.",
     "faq.q3":"How much does it cost?","faq.a3":"Completely free and open source (Apache-2.0). If it's useful, a coffee on Ko-fi is welcome — but entirely optional.",
     "faq.q4":"Is there a Windows version?","faq.a4":"Yes — it's live as an installer (one-click install, Start-menu shortcut, clean uninstall from Settings ▸ Apps). It isn't code-signed yet, so on first launch click More info → Run anyway on the SmartScreen prompt. Grab it in the download section above.",
 

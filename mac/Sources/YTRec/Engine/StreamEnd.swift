@@ -111,6 +111,12 @@ enum StreamEnd {
         previewReady && !previewShowsEnded && !previewShowsOtherVideo
     }
 
+    /// 預覽可以放行的正片：新鮮、不是廣告、內容在播。過期或沒有快照都不算。
+    static func previewContentReady(snapshot: PlayerSnapshot?, now: TimeInterval) -> Bool {
+        guard let snap = snapshot, now - snap.receivedAt <= staleSeconds else { return false }
+        return snap.content && !snap.ad
+    }
+
     private static func countdown(start: TimeInterval, extended: Int, now: TimeInterval) -> Int? {
         let remain = (start + baseSeconds + Double(extended)) - now
         if remain <= 0 { return nil }

@@ -18,6 +18,16 @@ public class StreamEndTableTests
     }
 
     [Fact]
+    public void PreviewContentReadyNeedsFreshNonAdContent()
+    {
+        var now = TimeSpan.FromSeconds(1000);
+        Assert.True(StreamEndGate.PreviewContentReady(Snap(false, false, true, "aaa", 0, now), now));
+        Assert.False(StreamEndGate.PreviewContentReady(Snap(false, true, true, "aaa", 0, now), now));
+        Assert.False(StreamEndGate.PreviewContentReady(Snap(false, false, true, "aaa", 6, now), now));
+        Assert.False(StreamEndGate.PreviewContentReady(null, now));
+    }
+
+    [Fact]
     public void EndedStartsCountdown()
     {
         var d = Eval(StreamPhase.Recording, "aaa", Snap(true, false, false, "aaa", 0, TimeSpan.FromSeconds(1000)), null, 0, 0);

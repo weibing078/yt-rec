@@ -35,11 +35,12 @@ public sealed class MainViewModel : INotifyPropertyChanged
         JumpLiveCommand = new RelayCommand(JumpToLive, () => IsPreviewing);
         RefreshTools();
         DetectAudioCapability();
+        LoadStoredPrefs();
         _ = CheckForUpdateAsync();
     }
 
     /// <summary>In-app update check (once per ~24 h, fail-silent): fetch latest.json, compare to this build's
-    /// version, and surface a "下載更新" notice if newer. Never auto-installs (unsigned). See shared/spec.</summary>
+    /// version, and surface a "下載更新" notice if newer. Never auto-installs. The link is allowlisted. See shared/spec.</summary>
     private async Task CheckForUpdateAsync()
     {
         try
@@ -54,7 +55,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
             if (m is null || !AppUpdate.IsNewer(current, m.Version)) return;
             _ui.TryEnqueue(() =>
             {
-                UpdateUrl = m.Url ?? m.Page;
+                UpdateUrl = AppUpdate.SafeOpenUrl(m.Url, m.Page);
                 UpdateNotice = $"有新版 v{m.Version}" + (string.IsNullOrEmpty(m.Notes) ? "" : $" · {m.Notes}");
             });
         }
@@ -142,8 +143,39 @@ public sealed class MainViewModel : INotifyPropertyChanged
         set { if (Set(ref _scrubberValue, value) && !_suppressSeek) OnUserScrub(value); }
     }
 
-    /// <summary>Recording duration cap (auto-finalize at the cap). Default 6 h (mac §8).</summary>
-    public DurationCap DurationCap { get; set; } = DurationCap.SixHours;
+    /// <summary>Recording duration cap (auto-finalize at the cap). Default 6 h, remembered across launches.</summary>
+    private DurationCap _durationCap = DurationCap.SixHours;
+    private int _quality = 1080;
+    private readonly List<string> _earlierOutputDirs = new();
+    private readonly List<StoredRecent> _storedRecent = new();
+    public int Quality => _quality;
+    public DurationCap DurationCap
+    {
+        get => _durationCap;
+        set
+        {
+            if (_durationCap == value) return;
+            _durationCap = value;
+            SaveSettings();
+            Raise(nameof(DurationCap));
+        }
+    }
+
+    /// <summary>Remember duration, 720/1080, and the output folder. The previous folder stays on the
+    /// recovery list.</summary>
+    public void SaveCaptureSettings(DurationCap cap, int quality, string? outputDir)
+    {
+        var next = string.IsNullOrWhiteSpace(outputDir) ? OutputPaths.DefaultRoot : outputDir.Trim();
+        var earlier = LocalPrefs.EarlierOutputDirs(OutputPaths.Root, _earlierOutputDirs, next);
+        _earlierOutputDirs.Clear();
+        _earlierOutputDirs.AddRange(earlier);
+        _quality = LocalPrefs.NormalizeQuality(quality);
+        OutputPaths.SetRoot(next);
+        _durationCap = cap;
+        SaveSettings();
+        Raise(nameof(DurationCap));
+        Raise(nameof(Quality));
+    }
 
     private string? _audioNotice;
     public string? AudioNotice
@@ -221,7 +253,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         engine.OnStatus = t => _ui.TryEnqueue(() => StatusText = t);
         engine.OnProbe = p => _ui.TryEnqueue(() => JobTitle = p.Title);
 
-        var outcome = await engine.StartAsync(UrlText, outputDir, maxHeight: 1080, section: section, ct: _cts.Token);
+        var outcome = await engine.StartAsync(UrlText, outputDir, maxHeight: 1080, autoMode: true, section: section, ct: _cts.Token);
+        var switchToSideRecord = outcome is DownloadOutcome.Marathon or DownloadOutcome.SkippedAutoLive;
 
         switch (outcome)
         {
@@ -232,18 +265,28 @@ public sealed class MainViewModel : INotifyPropertyChanged
             case DownloadOutcome.TerminalFailure f:
                 StatusText = f.Reason;
                 break;
-            case DownloadOutcome.Marathon:
-                StatusText = "馬拉松直播：此版本下載軌不處理（待 Phase 2 螢幕側錄）";
-                break;
-            case DownloadOutcome.SkippedAutoLive:
-                StatusText = "進行中直播：待 Phase 2 螢幕側錄";
-                break;
             case DownloadOutcome.Cancelled:
                 StatusText = "已取消";
                 break;
         }
         IsBusy = false;
         _cts = null;
+        if (!switchToSideRecord) return;
+
+        DiscardDownloadDirIfEmpty(outputDir);
+        WarningText = LocalPrefs.SwitchedToSideRecord;
+        await RecordAsync();
+    }
+
+    private static void DiscardDownloadDirIfEmpty(string dir)
+    {
+        try
+        {
+            if (!Directory.Exists(dir)) return;
+            if (!LocalPrefs.ShouldDiscardEmptyDownloadDir(Directory.GetFileSystemEntries(dir).Length)) return;
+            Directory.Delete(dir);
+        }
+        catch { /* leaving an empty folder is harmless */ }
     }
 
     // ── Track B: screen side-record ──────────────────────────────
@@ -306,7 +349,7 @@ public sealed class MainViewModel : INotifyPropertyChanged
 
         try
         {
-            await capture.PrepareAsync(UrlText, jobDir, "螢幕側錄");
+            await capture.PrepareAsync(UrlText, jobDir, "螢幕側錄", quality: _quality);
             if (!ReferenceEquals(_capture, capture)) return;
             PreviewReady = true;
             StartPositionPolling();
@@ -326,6 +369,11 @@ public sealed class MainViewModel : INotifyPropertyChanged
         {
             if (!IsRecording)
             {
+                if (_capture?.BeginBlockedReason is { } why)
+                {
+                    StatusText = why;
+                    return;
+                }
                 StatusText = "無法開始錄影：監看已經結束";
                 _capture?.CancelPreview(notify: false);
                 ResetRecordState();
@@ -448,7 +496,9 @@ public sealed class MainViewModel : INotifyPropertyChanged
     {
         StopGuardTimer();
         var why = _capture?.AutoStopReason;
+        var ads = _capture?.AdSidecarNote;
         StatusText = string.IsNullOrEmpty(why) ? "完成" : $"完成（{why}）";
+        if (!string.IsNullOrEmpty(ads)) StatusText += "。" + ads;
         if (File.Exists(path)) AddRecent(path, FileKind.Sidecar);
         ResetRecordState();
     }
@@ -522,24 +572,56 @@ public sealed class MainViewModel : INotifyPropertyChanged
     public async Task RecoverOrphansAsync()
     {
         var ffmpeg = BinaryLocator.Resolve(BinaryLocator.Tool.Ffmpeg);
-        if (ffmpeg == null || !Directory.Exists(OutputPaths.Root)) return;
-
-        var results = await SegmentReassembler.RecoverAllAsync(
-            OutputPaths.Root, activeJobDir: null, ffmpeg, new ProcessRunner(), OutputPaths.RecoveryOutput);
+        if (ffmpeg == null) return;
 
         var recovered = 0;
-        foreach (var (dir, ok, _) in results)
-            if (ok) { AddRecent(OutputPaths.RecoveryOutput(dir), FileKind.Sidecar); recovered++; }
+        foreach (var root in LocalPrefs.RecoveryRoots(OutputPaths.Root, _earlierOutputDirs))
+        {
+            if (!Directory.Exists(root)) continue;
+            var results = await SegmentReassembler.RecoverAllAsync(
+                root, activeJobDir: null, ffmpeg, new ProcessRunner(), OutputPaths.RecoveryOutput);
+            foreach (var (dir, ok, _) in results)
+                if (ok) { AddRecent(OutputPaths.RecoveryOutput(dir), FileKind.Sidecar); recovered++; }
+        }
         if (recovered > 0) StatusText = $"已修復 {recovered} 個中斷的側錄";
     }
 
+    private void LoadStoredPrefs()
+    {
+        var saved = PrefsStore.LoadSettings();
+        _durationCap = saved.Duration;
+        _quality = saved.Quality;
+        _earlierOutputDirs.AddRange(saved.EarlierOutputDirs);
+        OutputPaths.SetRoot(string.IsNullOrWhiteSpace(saved.OutputDir) ? OutputPaths.DefaultRoot : saved.OutputDir);
+        _storedRecent.AddRange(PrefsStore.LoadRecent());
+        ShowRecent(_storedRecent);
+    }
+
+    private void SaveSettings()
+        => PrefsStore.SaveSettings(new SavedSettings(_durationCap, _quality, OutputPaths.Root, _earlierOutputDirs));
+
     private void AddRecent(string path, FileKind kind)
     {
-        long size = 0;
-        try { size = new FileInfo(path).Length; } catch { /* best effort */ }
-        RecentFiles.Insert(0, new RecentFile(Path.GetFileName(path), path, kind, FormatBytes(size)));
-        while (RecentFiles.Count > 5) RecentFiles.RemoveAt(RecentFiles.Count - 1);
+        var next = LocalPrefs.RememberRecent(_storedRecent, new StoredRecent(path, kind.ToString()), File.Exists);
+        _storedRecent.Clear();
+        _storedRecent.AddRange(next);
+        PrefsStore.SaveRecent(_storedRecent);
+        ShowRecent(_storedRecent);
     }
+
+    private void ShowRecent(IReadOnlyList<StoredRecent> items)
+    {
+        RecentFiles.Clear();
+        foreach (var item in items)
+        {
+            long size = 0;
+            try { size = new FileInfo(item.Path).Length; } catch { /* best effort */ }
+            RecentFiles.Add(new RecentFile(Path.GetFileName(item.Path), item.Path, ParseKind(item.Kind), FormatBytes(size)));
+        }
+    }
+
+    private static FileKind ParseKind(string kind)
+        => Enum.TryParse<FileKind>(kind, out var parsed) ? parsed : FileKind.Sidecar;
 
     internal static string FormatBytes(long bytes)
     {
@@ -577,8 +659,12 @@ public sealed record RecentFile(string FileName, string FullPath, FileKind Kind,
 /// <summary>Output folder layout (mirrors mac ~/Movies/YT-Rec/&lt;timestamp title&gt;/).</summary>
 public static class OutputPaths
 {
-    public static string Root =>
+    public static string DefaultRoot =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "YT-Rec");
+
+    private static string _root = DefaultRoot;
+    public static string Root => _root;
+    public static void SetRoot(string path) => _root = string.IsNullOrWhiteSpace(path) ? DefaultRoot : path;
 
     public static string NewTaskFolder(string url)
     {

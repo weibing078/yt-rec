@@ -90,7 +90,10 @@ struct MenuPopoverView: View {
             Image(systemName: "arrow.down.circle.fill").foregroundStyle(.lcSignal)
             Text(text).font(.caption).fixedSize(horizontal: false, vertical: true)
             Spacer()
-            Button("下載更新") { if let u = app.updateURL { NSWorkspace.shared.open(u) } }
+            Button("下載更新") {
+                let raw = AppUpdate.openable(app.updateURL?.absoluteString)
+                if let u = URL(string: raw) { NSWorkspace.shared.open(u) }
+            }
                 .font(.caption)
         }
         .padding(8)

@@ -107,6 +107,12 @@ public static class StreamEndGate
     public static bool CanBeginFromPreview(bool previewReady, bool previewShowsEnded, bool previewShowsOtherVideo)
         => previewReady && !previewShowsEnded && !previewShowsOtherVideo;
 
+    /// <summary>Preview may open once the snapshot is fresh, not an ad, and content is playing.</summary>
+    public static bool PreviewContentReady(PlayerSnapshot? snapshot, TimeSpan now)
+        => snapshot is { } snap
+           && now - snap.ReceivedAt <= TimeSpan.FromSeconds(StaleSeconds)
+           && snap.Content && !snap.Ad;
+
     /// <summary>Parse one snapshot object. Missing fields, wrong types, or a broken document
     /// become ended=false, ad=false, content=false, id="" — never "content" and never "another video".</summary>
     public static ParsedSnap ParseSnapJson(string? json)

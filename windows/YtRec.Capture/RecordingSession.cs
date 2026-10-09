@@ -34,6 +34,7 @@ public sealed class RecordingSession : IDisposable
     private readonly string _audioPcmPath;
     private readonly int _fps;
     private int _capW, _capH;
+    private int _contentW, _contentH;
 
     private readonly SessionGate _gate = new();
     private readonly SessionResult _result = new();
@@ -178,7 +179,8 @@ public sealed class RecordingSession : IDisposable
         // released when we report), stop cleanly, and surface it via OnError. See §3.
         try
         {
-            OnFrameLocked(sender);
+            var stop = OnFrameLocked(sender);
+            if (stop is not null) OnError?.Invoke(stop);
         }
         catch (Exception ex)
         {
@@ -186,21 +188,23 @@ public sealed class RecordingSession : IDisposable
         }
     }
 
-    private void OnFrameLocked(Direct3D11CaptureFramePool sender)
+    private string? OnFrameLocked(Direct3D11CaptureFramePool sender)
     {
         lock (_lock)
         {
-            if (_stopped || _faulted) return;
+            if (_stopped || _faulted) return null;
             using var frame = sender.TryGetNextFrame();
-            if (frame is null) return;
+            if (frame is null) return null;
 
             using var src = FrameReadback.SurfaceToTexture(frame.Surface);
             var desc = src.Description;
             int w = (int)desc.Width, h = (int)desc.Height; // captured window size
 
+            int cw = frame.ContentSize.Width, ch = frame.ContentSize.Height;
             if (!_setup)
             {
                 _capW = w; _capH = h;
+                if (cw > 0 && ch > 0) { _contentW = cw; _contentH = ch; }
                 if (CropFrac is (double fx, double fy, double fw, double fh))
                 {
                     _cropX = Math.Clamp((int)(fx * w), 0, w - 2);
@@ -218,7 +222,18 @@ public sealed class RecordingSession : IDisposable
                 _frameBuf = new byte[_inW * _inH * 4];
                 _setup = true;
             }
-            if (w != _capW || h != _capH) return; // window resized mid-session — skip the odd frame
+            if (_contentW == 0 && cw > 0 && ch > 0)
+            {
+                _contentW = cw; _contentH = ch;
+            }
+            else if (_setup && (CaptureHealth.SizeChanged(_capW, _capH, w, h)
+                           || CaptureHealth.ContentSizeChanged(_contentW, _contentH, cw, ch)))
+            {
+                if (_faulted || _stopped) return null;
+                _faulted = true;
+                _result.Error ??= CaptureHealth.SizeChangedMessage;
+                return CaptureHealth.SizeChangedMessage;
+            }
 
             FrameReadback.CopyCropToBuffer(_context!, _staging!, src, _frameBuf!, _cropX, _cropY, _inW, _inH);
 
@@ -232,7 +247,7 @@ public sealed class RecordingSession : IDisposable
                 preview(PreviewScaler.DownscaleBgra(_frameBuf!, _inW, _inH, pw, ph), pw, ph);
             }
 
-            if (!_writing) return; // preview only — nothing is written until BeginWriting()
+            if (!_writing) return null; // preview only — nothing is written until BeginWriting()
 
             if (_ff is null) StartVideoFfmpeg(_inW, _inH, _result.Width, _result.Height);
 
@@ -242,7 +257,7 @@ public sealed class RecordingSession : IDisposable
             if (!_gate.AudioStarted)
             {
                 _result.VideoFramesDropped++;
-                return;
+                return null;
             }
 
             // Real-time CFR pacing (clock starts at the first written frame): emit the latest frame as many
@@ -261,6 +276,7 @@ public sealed class RecordingSession : IDisposable
                 try { _videoStdin!.Write(_frameBuf!, 0, _frameBuf!.Length); _result.VideoFrames++; }
                 catch (IOException) { break; } // ffmpeg gone
             }
+            return null;
         }
     }
 
@@ -297,6 +313,7 @@ public sealed class RecordingSession : IDisposable
         Add("-f", "rawvideo", "-pixel_format", "bgra", "-video_size", $"{inW}x{inH}", "-framerate", _fps.ToString(), "-i", "pipe:0");
         Add("-an", "-vf", ContinuousRecorder.ScalePadFilter(outW, outH));
         Add("-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p");
+        Add(X264Rate.LimitArgs(outW, outH));
         Add("-f", "hls", "-hls_time", "2", "-hls_list_size", "0",
             "-hls_segment_type", "fmp4",
             "-hls_flags", "independent_segments+temp_file",

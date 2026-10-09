@@ -89,17 +89,19 @@ public sealed partial class MainWindow : Window
             DurationCap.TwelveHours => 2,
             _ => 3,
         };
+        var quality = new ComboBox { HorizontalAlignment = HorizontalAlignment.Stretch };
+        quality.Items.Add("1080p");
+        quality.Items.Add("720p");
+        quality.SelectedIndex = Vm.Quality == 720 ? 1 : 0;
+        var folder = new TextBox { Text = OutputPaths.Root };
 
         var panel = new StackPanel { Spacing = 10, MinWidth = 320 };
         panel.Children.Add(new TextBlock { Text = "側錄時間上限（到上限自動存檔）", FontSize = 13 });
         panel.Children.Add(combo);
-        panel.Children.Add(new TextBlock
-        {
-            Text = "輸出資料夾：" + OutputPaths.Root,
-            FontSize = 12,
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
-        });
+        panel.Children.Add(new TextBlock { Text = "畫質", FontSize = 13 });
+        panel.Children.Add(quality);
+        panel.Children.Add(new TextBlock { Text = "輸出資料夾（換了之後，舊資料夾裡沒收工的錄影仍會被修復）", FontSize = 13, TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(folder);
         if (Vm.HasAudioNotice)
             panel.Children.Add(new TextBlock { Text = Vm.AudioNotice, FontSize = 12, TextWrapping = TextWrapping.Wrap });
 
@@ -113,13 +115,13 @@ public sealed partial class MainWindow : Window
             XamlRoot = RootGrid.XamlRoot,
         };
         if (await dlg.ShowAsync() == ContentDialogResult.Primary)
-            Vm.DurationCap = combo.SelectedIndex switch
+            Vm.SaveCaptureSettings(combo.SelectedIndex switch
             {
                 0 => DurationCap.ThreeHours,
                 1 => DurationCap.SixHours,
                 2 => DurationCap.TwelveHours,
                 _ => DurationCap.Unlimited,
-            };
+            }, quality.SelectedIndex == 1 ? 720 : 1080, folder.Text);
       }
       catch { /* dialog already open / transient — ignore rather than crash (async void) */ }
     }
@@ -175,13 +177,9 @@ public sealed partial class MainWindow : Window
 
     private void OnDownloadUpdate(object sender, RoutedEventArgs e)
     {
-        var url = Vm.UpdateUrl;
-        if (string.IsNullOrEmpty(url)) return;
-        // UseShellExecute runs the shell's default action on the string — a tampered latest.json could hand us a
-        // local path / UNC / .exe that would be EXECUTED, not opened. Only ever hand the shell http(s).
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var u) ||
-            (u.Scheme != Uri.UriSchemeHttp && u.Scheme != Uri.UriSchemeHttps))
-            return;
+        // UseShellExecute runs the shell's default action. A tampered latest.json must not hand us a
+        // local path, UNC, or file:// URL. Only the releases path or the product site is opened.
+        var url = AppUpdate.Openable(Vm.UpdateUrl);
         try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
     }
 

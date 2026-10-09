@@ -15,6 +15,25 @@ final class AppUpdateTests: XCTestCase {
         XCTAssertFalse(AppUpdate.isNewer(current: "1.0.0", latest: ""))        // latest 無法解析 → 絕不提示
     }
 
+    func testSafeOpenURLLocksPath() {
+        XCTAssertEqual(
+            AppUpdate.safeOpenURL(downloadURL: "https://github.com/weibing078/yt-rec/releases/download/v1.1.2/YT-Rec.dmg", page: nil),
+            "https://github.com/weibing078/yt-rec/releases/download/v1.1.2/YT-Rec.dmg")
+        XCTAssertEqual(
+            AppUpdate.safeOpenURL(downloadURL: "https://evil.example/payload.dmg", page: "https://ytrec.resonaframe.com/download"),
+            "https://ytrec.resonaframe.com/download")
+        XCTAssertEqual(
+            AppUpdate.safeOpenURL(downloadURL: "http://github.com/weibing078/yt-rec/releases/x.dmg", page: "http://ytrec.resonaframe.com/"),
+            AppUpdate.homepage)
+        XCTAssertEqual(
+            AppUpdate.safeOpenURL(downloadURL: "https://github.com/weibing078/other/releases/x.dmg", page: "https://evil.example/"),
+            AppUpdate.homepage)
+        XCTAssertEqual(
+            AppUpdate.safeOpenURL(downloadURL: "https://user:pw@github.com/weibing078/yt-rec/releases/x.dmg", page: nil),
+            AppUpdate.homepage)
+        XCTAssertEqual(AppUpdate.openable("file:///etc/passwd"), AppUpdate.homepage)
+    }
+
     func testParseManifest() {
         let json = """
         {"version":"1.1.0","notes":{"zh-Hant":"倒帶預覽","en":"Rewind"},

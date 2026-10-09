@@ -40,6 +40,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Log.info("app", "\(AppInfo.displayName) 啟動 v1.0 (\(ProcessInfo.processInfo.operatingSystemVersionString))")
         _ = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .idleSystemSleepDisabled],
                                                   reason: "\(AppInfo.displayName) capture")
+        if let spec = AppState.autoRecordLaunch(CommandLine.arguments) {
+            Task { @MainActor in
+                await AppState.shared.runAutoRecord(url: spec.url, seconds: spec.seconds)
+                NSApp.terminate(nil)
+            }
+        }
         NotificationCenter.default.addObserver(self, selector: #selector(mainWindowWillClose(_:)),
                                                name: NSWindow.willCloseNotification, object: nil)
     }

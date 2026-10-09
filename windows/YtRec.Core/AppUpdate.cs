@@ -10,6 +10,47 @@ public sealed record UpdateManifest(string Version, string? Notes, string? Url, 
 /// the fetch and the notice; this is the testable core.</summary>
 public static class AppUpdate
 {
+    public const string Homepage = "https://ytrec.resonaframe.com/";
+
+    /// <summary>The download button opens this. A release asset must live under the yt-rec releases path;
+    /// a page must be on the product host. Anything else becomes <see cref="Homepage"/>.</summary>
+    public static string SafeOpenUrl(string? downloadUrl, string? page)
+    {
+        if (IsAllowedReleaseUrl(downloadUrl)) return downloadUrl!.Trim();
+        if (IsAllowedPageUrl(page)) return page!.Trim();
+        return Homepage;
+    }
+
+    /// <summary>Click-time check for a URL already chosen by <see cref="SafeOpenUrl"/>.</summary>
+    public static string Openable(string? candidate)
+        => IsAllowedReleaseUrl(candidate) || IsAllowedPageUrl(candidate) ? candidate!.Trim() : Homepage;
+
+    public static bool IsAllowedReleaseUrl(string? url)
+    {
+        if (!TryHttps(url, out var uri)) return false;
+        if (!uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)) return false;
+        var path = uri.AbsolutePath;
+        return path.Equals("/weibing078/yt-rec/releases", StringComparison.Ordinal)
+            || path.StartsWith("/weibing078/yt-rec/releases/", StringComparison.Ordinal);
+    }
+
+    public static bool IsAllowedPageUrl(string? url)
+    {
+        if (!TryHttps(url, out var uri)) return false;
+        return uri.Host.Equals("ytrec.resonaframe.com", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryHttps(string? url, out Uri uri)
+    {
+        uri = null!;
+        if (string.IsNullOrWhiteSpace(url)) return false;
+        if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var parsed)) return false;
+        if (!parsed.Scheme.Equals("https", StringComparison.OrdinalIgnoreCase)) return false;
+        if (!string.IsNullOrEmpty(parsed.UserInfo)) return false;
+        uri = parsed;
+        return true;
+    }
+
     /// <summary>True when <paramref name="latest"/> is a strictly newer version than <paramref name="current"/>.
     /// Dotted-numeric compare (1.10 &gt; 1.9), missing parts = 0, a leading <c>v</c> and any <c>-pre</c>/<c>+meta</c>
     /// suffix are ignored. Unparseable input compares as 0 (never falsely offers an update).</summary>

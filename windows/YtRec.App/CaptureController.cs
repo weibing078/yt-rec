@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using YtRec.Capture;
 using YtRec.Core;
@@ -23,6 +24,8 @@ public sealed class CaptureController
 
     /// <summary>Set only when the snapshot table stops the recording. User stop leaves this null.</summary>
     public string? AutoStopReason { get; private set; }
+    /// <summary>Set when BeginRecording refuses because an ad is on screen. The preview stays up.</summary>
+    public string? BeginBlockedReason { get; private set; }
 
     public const string PreviewDismissedReason = "已取消監看，沒有開始錄影。";
 
@@ -49,6 +52,15 @@ public sealed class CaptureController
     private bool _lastPreviewEnded;
     private bool _lastPreviewOther;
     private bool _audioDeviceLost; // Win10 loopback endpoint invalidated mid-record → finalize must keep full video
+    private readonly AdIntervalLog _ads = new();
+    private Stopwatch? _fileClock;
+    private int _previewFrames;
+    private int _stallBaseline;
+    private long _stallMarkedAt;
+    /// <summary>True when the preview produced no new frame for several seconds. Begin stays blocked.</summary>
+    public bool PreviewStalled { get; private set; }
+    /// <summary>Set when a sidecar was written. The finish status appends this. Null when there was no ad.</summary>
+    public string? AdSidecarNote { get; private set; }
     private string? _faultMessage; // cause of a capture-callback fault, preferred over the reassembler's error
 
     public bool IsRecording { get; private set; }
@@ -73,6 +85,9 @@ public sealed class CaptureController
         _anchorId = YtUrl.VideoId(url) ?? "";
         _jobDir = jobDir;
         _audioDeviceLost = false;
+        _ads.CloseOpen(0);
+        _fileClock = null;
+        AdSidecarNote = null;
         _segmentsDir = SegmentReassembler.SegmentsDir(jobDir);
         _audioPcmPath = SegmentReassembler.AudioPath(jobDir);
         Directory.CreateDirectory(_segmentsDir);
@@ -135,9 +150,37 @@ public sealed class CaptureController
             var win = CaptureGeometry.FitWindow(target, screenW, screenH);
             _player.ClearVideoRect();           // discard the pre-resize rect
             _player.Resize(win.Width, win.Height);
-            // Wait for a FRESH crop rect for the new (possibly portrait) layout — a stale/null rect falls back to
-            // a whole-window capture that includes the watch page's letterboxing (pillarbox on vertical).
-            for (int i = 0; i < 20 && _player.VideoRectFrac is null; i++) await Task.Delay(200);
+            // Two identical reports before we lock the crop. A single post-resize report can still be the
+            // layout YouTube has not finished. Never fall back to the whole window (that records the page).
+            (double X, double Y, double W, double H)? crop = null;
+            (double X, double Y, double W, double H)? previous = null;
+            var cropWaitStarted = Environment.TickCount64;
+            var warnedUnstableCrop = false;
+            var cropSamples = 0;
+            var cropWithRect = 0;
+            while (Environment.TickCount64 - cropWaitStarted < 20_000)
+            {
+                var current = _player.VideoRectFrac;
+                cropSamples++;
+                if (current is { } now)
+                {
+                    cropWithRect++;
+                    if (previous is { } prior && CropStability.Same(prior, now))
+                    {
+                        crop = now;
+                        break;
+                    }
+                }
+                previous = current;
+                if (!warnedUnstableCrop && Environment.TickCount64 - cropWaitStarted >= 4_000)
+                {
+                    warnedUnstableCrop = true;
+                    Status?.Invoke("裁切範圍還沒穩定，繼續等，不會改錄整頁");
+                }
+                await Task.Delay(200);
+            }
+            if (crop is null)
+                throw new InvalidOperationException(CaptureHealth.CropGiveUpMessage(cropSamples, cropWithRect));
 
             // The player sits 99.99% off-screen (Win32PlayerHost.Resize) and is click-through, so the user never
             // sees or touches it — the Mac off-screen experience, no opaque lid. Verified on real Win11 that WGC
@@ -148,13 +191,17 @@ public sealed class CaptureController
             // the recorder scales+pads that crop to the exact target so the output is a clean, content-driven size.
             _session = new RecordingSession(_player.Hwnd, audio, _ffmpegPath, _segmentsDir, _audioPcmPath, fps)
             {
-                OnPreviewFrame = (buf, w, h) => _monitor?.UpdatePreview(buf, w, h),
+                OnPreviewFrame = (buf, w, h) =>
+                {
+                    Interlocked.Increment(ref _previewFrames);
+                    _monitor?.UpdatePreview(buf, w, h);
+                },
                 // A throw inside the free-threaded WGC callback (GPU device-loss/TDR, hybrid-GPU switch, display
                 // unplug, ffmpeg spawn failure) would otherwise crash the whole app. Marshal to the UI thread and
                 // finalize/report cleanly (§3).
                 OnError = msg => _ui.TryEnqueue(() => OnSessionError(msg)),
                 TargetSize = (target.Width, target.Height),
-                CropFrac = _player.VideoRectFrac,
+                CropFrac = crop,
             };
             // Stream end is a 20s candidate while recording. Preview ended does not tear the monitor down
             // (that used to leave the main window showing 「錄製中」 with no session underneath).
@@ -166,6 +213,10 @@ public sealed class CaptureController
 
             await RecordingSession.RequestBorderlessAsync(); // drop the yellow WGC border before capture
             _session.Start();           // PREVIEW: frames mirror to the monitor, nothing is written yet
+            _previewFrames = 0;
+            _stallBaseline = 0;
+            _stallMarkedAt = Environment.TickCount64;
+            PreviewStalled = false;
             _previewing = true;
             _monitor?.SetStatus("預覽中 · 倒帶到要開始錄的時間點");
             Status?.Invoke("預覽中");
@@ -187,9 +238,28 @@ public sealed class CaptureController
 
     /// <summary>Phase 2: switch the live preview into recording from the current player position.
     /// Returns false when the preview is already gone — the caller must say so instead of showing 「錄製中」.</summary>
+    /// <summary>Headless check only. Changes the capture window size after recording has started so the
+    /// next frame takes the existing error path instead of being dropped.</summary>
+    public void ChangeCaptureSizeForCheck() => _player?.Resize(1100, 700);
+
     public bool BeginRecording()
     {
+        BeginBlockedReason = null;
         if (!StreamEndGate.BeginRecordingSucceeds(_session is not null, _previewing, IsRecording)) return false;
+        if (PreviewStalled)
+        {
+            BeginBlockedReason = CaptureHealth.PreviewStalledMessage;
+            Status?.Invoke(BeginBlockedReason);
+            return false;
+        }
+        if (_latestSnap is { } snap && snap.Ad &&
+            TimeSpan.FromMilliseconds(Environment.TickCount64) - snap.ReceivedAt <= TimeSpan.FromSeconds(StreamEndGate.StaleSeconds))
+        {
+            BeginBlockedReason = "正在播廣告，請等正片開始再錄";
+            Status?.Invoke(BeginBlockedReason);
+            return false;
+        }
+        _fileClock = Stopwatch.StartNew();
         _session!.BeginWriting();
         _previewing = false;
         IsRecording = true;
@@ -222,6 +292,8 @@ public sealed class CaptureController
     /// <summary>First line: this controller is still previewing or recording. Otherwise the timer stops itself.</summary>
     private void OnSnapshotTick()
     {
+        NotePreviewMotion();
+        SampleAd();
         if (!IsPreviewing && !IsRecording)
         {
             StopSnapshotTimer();
@@ -260,6 +332,32 @@ public sealed class CaptureController
             ShowSnapshotStatus("錄製中", RecordingMonitorStatus());
         else
             ShowSnapshotStatus("預覽中", "預覽中 · 倒帶到要開始錄的時間點");
+    }
+
+    private void NotePreviewMotion()
+    {
+        if (!IsPreviewing) return;
+        var frames = Volatile.Read(ref _previewFrames);
+        var elapsed = Environment.TickCount64 - _stallMarkedAt;
+        if (CaptureHealth.PreviewIsStalled(_stallBaseline, frames, elapsed))
+        {
+            if (PreviewStalled) return;
+            PreviewStalled = true;
+            Status?.Invoke(CaptureHealth.PreviewStalledMessage);
+            return;
+        }
+        if (frames <= _stallBaseline) return;
+        _stallBaseline = frames;
+        _stallMarkedAt = Environment.TickCount64;
+        PreviewStalled = false;
+    }
+
+    private void SampleAd()
+    {
+        if (!IsRecording || _fileClock is null || _latestSnap is not { } snap) return;
+        var age = TimeSpan.FromMilliseconds(Environment.TickCount64) - snap.ReceivedAt;
+        if (age > TimeSpan.FromSeconds(StreamEndGate.StaleSeconds)) return;
+        _ads.Observe(snap.Ad, (int)_fileClock.Elapsed.TotalSeconds);
     }
 
     /// <summary>Updates the main window and the monitor only when the text actually changes.</summary>
@@ -331,6 +429,7 @@ public sealed class CaptureController
         var session = _session;
         if (StreamEndGate.StopReportsFailure(session is not null)) return false;
         if (!StreamEndGate.StopHasWork(session is not null, _stopping)) return true;
+        SampleAd();
         StopSnapshotTimer();
         _stopping = true;
         IsRecording = false;
@@ -346,13 +445,26 @@ public sealed class CaptureController
             var result = await session!.StopAsync();
             Status?.Invoke($"session: frames={result.VideoFrames} dropped={result.VideoFramesDropped} audioBytes={result.AudioBytes} ffmpegExit={result.FfmpegExitCode} {result.Error}");
 
+            _ads.CloseOpen((int)(_fileClock?.Elapsed.TotalSeconds ?? 0));
             var (ok, err) = await SegmentReassembler.ReassembleAsync(
                 _segmentsDir, _outputPath, _ffmpegPath, new ProcessRunner(), _audioPcmPath,
                 keepFullVideo: _audioDeviceLost);
 
             CloseWindows();
 
-            if (ok) Finished?.Invoke(_outputPath);
+            if (ok)
+            {
+                var text = _ads.Render();
+                if (text is not null)
+                {
+                    var side = AdIntervalLog.SidecarPath(_outputPath);
+                    File.WriteAllText(side, text);
+                    AdSidecarNote = $"這次錄到 {_ads.Spans.Count} 段廣告，時段寫在 {Path.GetFileName(side)}";
+                }
+                var notice = CaptureHealth.NoticeAfterSave(AutoStopReason, _faultMessage);
+                if (!string.IsNullOrEmpty(notice)) AutoStopReason = notice;
+                Finished?.Invoke(_outputPath);
+            }
             else Failed?.Invoke(_faultMessage ?? err ?? result.Error ?? "錄製失敗");
         }
         catch (Exception e)

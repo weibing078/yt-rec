@@ -44,6 +44,7 @@ public class PlayerAssetsTests
     {
         var s = PlayerAssets.FillPlayAndReportScript;
         Assert.Contains("ad-showing", s);            // detects an ad on the player
+        Assert.Contains("getAdState() === 1", s);    // class missing: player ad state still counts
         Assert.Contains("ytp-ad-skip-button", s);    // auto-clicks the skip control
         Assert.Contains("ad: ad", s);                // snapshot includes the ad flag
         Assert.Contains("content: content", s);      // snapshot includes real-content

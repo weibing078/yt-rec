@@ -24,6 +24,10 @@ on both platforms ([TEST-PLAN.md](../../docs/TEST-PLAN.md)).
 - **off** (default) → never download; side-record only.
 - **auto** → download only ended VODs: `post_live`/`was_live`/`not_live` → yes;
   `is_live`/`is_upcoming`/probe-failure/NA → no (side-record only).
+- Windows **下載** uses auto. Marathon and skipped-live switch into side-record preview
+  and say 「這支不是已結束的影片（直播中或尚未開播），已幫你切到側錄預覽」.
+  The empty download folder from that attempt is deleted. A user-specified section
+  still downloads. Mac **always** stays a Mac setting.
 - **always** → attempt regardless, **except** marathon intercept applies.
 
 ## Marathon detection
@@ -111,14 +115,49 @@ rewindable point, `1` = live edge.
 - **Record-from-here** begins writing from the current player position; **cancel
   preview** tears down with **no file produced** (mirrors the §Stop "positioning" rule).
 
-## Ad gate (no-Premium: never record an ad)
+## Ad gate (no-Premium)
 Side-record only — the download (yt-dlp) path is ad-free by construction.
-- The injected player script auto-clicks any **skip** control the instant it appears,
+- The injected player script treats an ad as playing when the player has `ad-showing` or
+  `ad-interrupting`, when `getAdState()` is `1`, or when `isLifaAdPlaying()` is true.
+  `ad-created` is not an ad. It auto-clicks any **skip** control the instant it appears,
   keeps an ad **muted**, and never reports an ad's geometry as the capture size.
+  The writer is not paused.
 - Recording start is **gated on real content**: `contentReady` = a non-ad video is
   actually playing (`!ad && !paused && currentTime > 0 && readyState ≥ 3 &&
   videoWidth > 0`). The writer waits for `contentReady` (cap **45 s**, then proceed so a
   detection miss can't hang), then the normal audio-settle + session gate apply.
+  Mac does not enter preview until that gate (or the 45 s timeout, which is said on screen).
+  On 2026-10-09 the signed Mac app reached preview with 「倒帶到要的點，再按「從這裡開始錄影」」
+  and then wrote an 8.24 s 1920×1080 file, and a 60 s live recording with the same message.
+  The same day, lofi did not confirm content within 45 s, so the app showed
+  「等了 45 秒還沒確認正片，仍可開始錄影。若還在播廣告，廣告會進檔。」 and still wrote a file
+  (11 frames, almost no audio). None of these files had an ad sidecar: the player did not
+  report an ad while writing.
+  Pressing record checks the ad flag again.
+- Windows locks the crop only after two identical picture rects, before ffmpeg starts.
+  At 4 s it warns and keeps waiting. At 20 s with no stable rect it stops and does not
+  record the whole page. If none of the samples had a picture rect, the message is
+  「預覽沒有新畫面，先不要開錄」. If rects arrived but never matched, the message says the
+  crop was not stable. A 2026-10-09 lofi live stopped with no mp4. The build that uses
+  the no-new-frame sentence wrote 「預覽沒有新畫面，先不要開錄。請確認播放器有在動。」
+  (`build/logs/goal-win-lofi3.log`). A normal VOD the same day recorded 12.00 s, 1920×1080, crf 23,
+  vbv_maxrate 12000, vbv_bufsize 24000. An 8 s take of that VOD at quality 720 is 1280×720,
+  crf 23, vbv_maxrate 6000, vbv_bufsize 12000 (`build/logs/goal-win-720.log`).
+- Windows treats a real capture-size change as a stop, through the existing error path,
+  and keeps the partial file. The frame texture stays at the pool size, so the check
+  uses the frame's content size and ignores shifts of 8 px or less. A first frame with no
+  content size does not count; the next real size becomes the lock, not a stop. On 2026-10-09
+  a resize during a Big Buck Bunny take stopped with 「擷取尺寸變了，已停止並保留已錄的部分」
+  and saved 120 frames (ffmpeg exit 0). If the partial file still saves, the finish notice is
+  the capture fault unless a stop reason was already set. A clean save with no fault stays a
+  plain completion. An earlier unsigned rebuild was blocked by code integrity (`0x800711C7`);
+  a later rebuild loaded.
+- A **mid-roll** ad is recorded as-is (no black frame, no cut, no pause-writing). Each
+  interval is written beside the mp4 as `<name>.廣告時段.txt`. The header line is
+  `每秒偵測，誤差約 ±1-2 秒`. Each range is `HH:MM:SS–HH:MM:SS` with an en dash.
+  No intervals means no file. A crash-recovered
+  file does not get this sidecar. If the native download trashes the side-record, the
+  txt is trashed with it.
 
 ## App update check (notify, never auto-install)
 A hosted manifest `latest.json` (on the landing page) is the single source of truth for the
@@ -131,7 +170,12 @@ newest release; pure logic is `AppUpdate` (L1-tested), the app does the fetch + 
 - On launch (throttled to once per ~24 h, **fail-silent** with no network), fetch the manifest,
   compare to the app's own version; if newer show a **non-blocking** notice
   (`有新版 vX · <notes> · 下載更新`) that opens the download URL/`page`.
-- **Never auto-download or auto-install** — the app is unsigned. Download URLs are GitHub
+- **Never auto-download or auto-install.** Mac is signed and notarized; Windows is unsigned.
+  The download URL is opened only when it is https on `github.com` and the path is
+  `/weibing078/yt-rec/releases` or starts with `/weibing078/yt-rec/releases/`.
+  The page URL is opened only when it is https on `ytrec.resonaframe.com` (any path on that host).
+  Userinfo, http, and every other host open the homepage.
+  Download URLs are GitHub
   `releases/latest/download/<asset>` (evergreen → always newest); a release only bumps
   `version`/`pubDate`/`notes` in the manifest (`tools/release.sh`).
 

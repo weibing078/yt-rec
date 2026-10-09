@@ -4,6 +4,18 @@ import XCTest
 /// L1：把編排決策從 AppState 的 @MainActor 副作用裡抽出來後，逐條釘住。
 /// 對應測試計畫 R1（A 成功 vs 定位）、R2（保護閘只在寫檔中跑）、R3（守衛順序）、R6（環境文案）。
 
+final class AutoRecordLaunchTests: XCTestCase {
+    func testParsesUrlAndSeconds() {
+        let spec = AppState.autoRecordLaunch(["YTRec", "--autorecord", "https://www.youtube.com/watch?v=aqz-KE-bpKQ", "8"])
+        XCTAssertEqual(spec, AppState.AutoRecordLaunch(url: "https://www.youtube.com/watch?v=aqz-KE-bpKQ", seconds: 8))
+    }
+
+    func testRejectsMissingSeconds() {
+        XCTAssertNil(AppState.autoRecordLaunch(["YTRec", "--autorecord", "https://youtu.be/abc"]))
+        XCTAssertNil(AppState.autoRecordLaunch(["YTRec", "--autorecord", "https://youtu.be/abc", "0"]))
+    }
+}
+
 final class StartJobGuardTests: XCTestCase {
     func testEmptyIgnored() {
         XCTAssertEqual(AppState.startJobGuard(trimmedURL: "", hasActiveJob: false), .ignore)

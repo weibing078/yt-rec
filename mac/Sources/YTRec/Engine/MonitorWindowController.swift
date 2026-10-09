@@ -514,7 +514,13 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
       var sentDims = '';
       function lcfAdShowing() {
         var node = document.getElementById('movie_player');
-        return !!(node && node.classList && (node.classList.contains('ad-showing') || node.classList.contains('ad-interrupting')));
+        if (!node) return false;
+        if (node.classList && (node.classList.contains('ad-showing') || node.classList.contains('ad-interrupting'))) return true;
+        // 2026-10-09 content playback reported getAdState() === -1 and isLifaAdPlaying() === false.
+        // 1 means an ad is playing even when the class is missing. ad-created is not an ad.
+        try { if (node.getAdState && node.getAdState() === 1) return true; } catch (e) {}
+        try { if (node.isLifaAdPlaying && node.isLifaAdPlaying()) return true; } catch (e) {}
+        return false;
       }
       function lcfVideoId() {
         try {
@@ -543,8 +549,8 @@ final class MonitorWindowController: NSObject, WKNavigationDelegate, WKScriptMes
           var mp = document.getElementById('movie_player');
           var ad = lcfAdShowing();
           if (ad) {
-            // No-Premium: an ad must never land in the recording. Auto-skip any skippable ad the instant a
-            // skip control appears, keep the ad silent, and never report its geometry as the source dims.
+            // Skip a skippable ad as soon as the button appears, keep it silent, and do not report
+            // its geometry as the source size. The writer keeps going; the sidecar lists the interval.
             var sb = document.querySelectorAll('.ytp-ad-skip-button-modern,.ytp-ad-skip-button,.ytp-skip-ad-button,.ytp-ad-skip-button-container button,.ytp-ad-skip-button-slot button');
             for (var i = 0; i < sb.length; i++) { try { sb[i].click(); } catch (e) {} }
             if (!v.muted) v.muted = true;

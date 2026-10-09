@@ -42,6 +42,7 @@ final class AppState: ObservableObject {
     }
     private var snapshotTimer: Timer?
     private var snapshotSession: SnapshotSession?
+    private var adLog = AdIntervalLog()
     private var autoStopDetail: String?
     @Published var previewShowsEnded = false
     @Published var previewShowsOtherVideo = false
@@ -73,7 +74,7 @@ final class AppState: ObservableObject {
     }
 
     /// App 內更新檢查（每天最多一次、無網路時靜默）：抓 latest.json、比版本，有新版就設 `updateNotice`。
-    /// 不自動下載/安裝（未簽章）—— 只通知，使用者自己按「下載更新」（shared/spec「App update check」）。
+    /// 不自動下載/安裝—— 只通知，使用者自己按「下載更新」。連結先過網域檢查（shared/spec「App update check」）。
     @MainActor
     func checkForUpdate() async {
         let key = "lastUpdateCheck"
@@ -90,7 +91,7 @@ final class AppState: ObservableObject {
             guard let m = AppUpdate.parseManifest(String(data: data, encoding: .utf8), platform: "mac"),
                   AppUpdate.isNewer(current: current, latest: m.version) else { return }
             updateNotice = "有新版 v\(m.version)" + ((m.notes?.isEmpty == false) ? " · \(m.notes!)" : "")
-            updateURL = URL(string: m.url ?? m.page)
+            updateURL = URL(string: AppUpdate.safeOpenURL(downloadURL: m.url, page: m.page))
         } catch { /* 無網路 / 清單還沒上線：靜默 */ }
     }
 
@@ -184,6 +185,21 @@ final class AppState: ObservableObject {
         return screenGranted ? nil : "尚未授權「螢幕與系統音訊錄音」，螢幕側錄無法運作。（勾選後請重開 App 生效）"
     }
 
+    /// Headless check only: `--autorecord <url> <seconds>`. Not a user-facing control.
+    struct AutoRecordLaunch: Equatable {
+        let url: String
+        let seconds: Int
+    }
+
+    nonisolated static func autoRecordLaunch(_ args: [String]) -> AutoRecordLaunch? {
+        guard let i = args.firstIndex(of: "--autorecord"),
+              i + 2 < args.count,
+              let seconds = Int(args[i + 2]), seconds > 0 else { return nil }
+        let url = args[i + 1].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty else { return nil }
+        return AutoRecordLaunch(url: url, seconds: seconds)
+    }
+
     /// 頂部警告是否顯示「檢查權限」深連結（純函式）：只有權限類訊息才出鈕，
     /// 「缺少元件」「這不是 YouTube」不出鈕（避免誤導使用者去開權限頁）。
     nonisolated static func bannerShowsPermissionAction(_ msg: String) -> Bool {
@@ -213,10 +229,49 @@ final class AppState: ObservableObject {
         startPreview(j)
     }
 
+    /// Headless check only. Opens preview, waits out the content gate, records for `seconds`, then stops.
+    func runAutoRecord(url: String, seconds: Int) async {
+        Log.info("autorecord", "url=\(url) seconds=\(seconds)")
+        startJob(urlString: url)
+        let deadline = Date().addingTimeInterval(70)
+        while Date() < deadline {
+            if case .previewing = job?.trackB { break }
+            if case .failed = job?.trackB { break }
+            if case .recording = job?.trackB { break }
+            try? await Task.sleep(nanoseconds: 250_000_000)
+        }
+        Log.info("autorecord", "gate=\(Self.trackBLabel(job?.trackB)) message=\(job?.infoMessage ?? "")")
+        beginRecording()
+        Log.info("autorecord", "afterBegin=\(Self.trackBLabel(job?.trackB)) message=\(job?.infoMessage ?? "")")
+        if isRecording {
+            try? await Task.sleep(nanoseconds: UInt64(seconds) * 1_000_000_000)
+            await stopTrackB(reason: .userStopped)
+        }
+        Log.info("autorecord", "done=\(Self.trackBLabel(job?.trackB))")
+    }
+
+    nonisolated static func trackBLabel(_ status: TrackBStatus?) -> String {
+        switch status {
+        case .idle, nil: return "idle"
+        case .preparing: return "preparing"
+        case .previewing: return "previewing"
+        case .recording(let mode): return "recording:\(mode)"
+        case .finalizing: return "finalizing"
+        case .finished(let url): return "finished:\(url.lastPathComponent)"
+        case .failed(let reason): return "failed:\(reason)"
+        case .discarded: return "discarded"
+        }
+    }
+
     /// 定位完、開始正式寫檔（從目前播放位置往後錄）。下載軌也在此時依設定啟動。
     func beginRecording() {
         guard !previewShowsEnded else { return }
         guard let j = job, let rec = recorder, case .previewing = j.trackB else { return }
+        if let latest = snapshotSession?.latest, latest.ad,
+           ProcessInfo.processInfo.systemUptime - latest.receivedAt <= StreamEnd.staleSeconds {
+            j.infoMessage = "正在播廣告，請等正片開始再錄"
+            return
+        }
         do {
             try rec.beginWriting()
             let quality = Int(Settings.recordSize.height) == 720 ? "720p" : "1080p"
@@ -482,10 +537,11 @@ final class AppState: ObservableObject {
             }
         }
 
-        snapshotSession = SnapshotSession(jobId: j.id, anchorId: j.videoID ?? "", openedAt: ProcessInfo.processInfo.systemUptime)
+        let session = SnapshotSession(jobId: j.id, anchorId: j.videoID ?? "", openedAt: ProcessInfo.processInfo.systemUptime)
+        snapshotSession = session
+        adLog = AdIntervalLog()
         if previewShowsEnded { previewShowsEnded = false }
         if previewShowsOtherVideo { previewShowsOtherVideo = false }
-        let session = snapshotSession
         monitor.onSnapshot = { [weak self] ended, ad, content, id in
             let at = ProcessInfo.processInfo.systemUptime
             Task { @MainActor in
@@ -502,16 +558,26 @@ final class AppState: ObservableObject {
             try? await Task.sleep(nanoseconds: 800_000_000)
             do {
                 try await rec.start(captureWindowNumber: self.monitor.windowNumber)
-                await MainActor.run {
-                    // 啟動期間（800ms+）這場可能已被取消或換成新的一場 → 這個 rec 是孤兒，收掉它、別動到別人（修審查 #2/#4）
-                    guard self.recorder === rec, case .preparing = j.trackB else {
-                        Task { await rec.cancelCapture() }
-                        return
-                    }
-                    j.trackB = .previewing     // SCK 跑起來了，進入可倒帶定位狀態（還沒寫檔）
-                    j.infoMessage = "倒帶到要的點，再按「從這裡開始錄影」。"
-                    self.startSnapshotTimer(for: j)
+                // 啟動期間這場可能已被取消或換成新的一場 → 這個 rec 是孤兒，收掉它、別動到別人。
+                guard self.recorder === rec, case .preparing = j.trackB else {
+                    await rec.cancelCapture()
+                    return
                 }
+                let wait = await self.waitForPreviewContent(session: session, job: j, recorder: rec)
+                guard self.recorder === rec, case .preparing = j.trackB else {
+                    await rec.cancelCapture()
+                    return
+                }
+                j.trackB = .previewing     // 正片到了，或 45 秒逾時。還沒寫檔。
+                switch wait {
+                case .content:
+                    j.infoMessage = "倒帶到要的點，再按「從這裡開始錄影」。"
+                case .timeout:
+                    j.infoMessage = "等了 45 秒還沒確認正片，仍可開始錄影。若還在播廣告，廣告會進檔。"
+                case .cancelled:
+                    return
+                }
+                self.startSnapshotTimer(for: j)
             } catch {
                 await MainActor.run {
                     guard self.recorder === rec else { return }   // 已被換掉/取消就別 stomp 新的一場
@@ -525,6 +591,26 @@ final class AppState: ObservableObject {
                 }
             }
         }
+    }
+
+    private enum ContentWait { case content, timeout, cancelled }
+
+    /// 正片（新鮮快照、不是廣告）出現才放行。45 秒還沒有就逾時放行，並在畫面上講明。
+    private func waitForPreviewContent(session: SnapshotSession, job: JobViewModel, recorder: RecorderEngine) async -> ContentWait {
+        let deadline = Date().addingTimeInterval(45)
+        while Date() < deadline {
+            guard self.recorder === recorder, case .preparing = job.trackB, self.snapshotSession === session else {
+                return .cancelled
+            }
+            if StreamEnd.previewContentReady(snapshot: session.latest, now: ProcessInfo.processInfo.systemUptime) {
+                return .content
+            }
+            try? await Task.sleep(nanoseconds: 250_000_000)
+        }
+        guard self.recorder === recorder, case .preparing = job.trackB, self.snapshotSession === session else {
+            return .cancelled
+        }
+        return .timeout
     }
 
     enum StopReason { case nativeSucceeded, playerEnded, userStopped, durationLimit, lowDisk }
@@ -547,12 +633,15 @@ final class AppState: ObservableObject {
         switch reason {
         case .nativeSucceeded:
             if let result, Settings.trashSidecarOnNative {
+                _ = writeAdSidecar(beside: result)
                 FileUtil.trash(result)
+                FileUtil.trash(AdIntervalLog.sidecarURL(beside: result))
                 j.trackB = .discarded
                 Log.info("job", "側錄檔已丟垃圾桶（原生檔已到手）")
             } else if let result {
                 j.trackB = .finished(result)
                 addHistory(result, kind: .sidecar, title: j.title)
+                if let note = writeAdSidecar(beside: result) { j.infoMessage = note }
             } else {
                 j.trackB = .discarded
             }
@@ -564,6 +653,9 @@ final class AppState: ObservableObject {
                 if var note = Self.stopNotification(reason: reason, fileName: result.lastPathComponent) {
                     if reason == .playerEnded, let extra = autoStopDetail, !extra.isEmpty {
                         note.body = "\(note.body)。\(extra)"
+                    }
+                    if let ads = writeAdSidecar(beside: result) {
+                        note.body = "\(note.body)。\(ads)"
                     }
                     Notify.post(title: note.title, body: note.body)
                 }
@@ -581,6 +673,20 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// 有廣告時段才寫檔。回傳要附在通知上的那一句；0 段回 nil。
+    private func writeAdSidecar(beside mp4: URL) -> String? {
+        adLog.closeOpen(fileSec: Int(job?.recordSeconds ?? 0))
+        guard let text = adLog.render() else { return nil }
+        let side = AdIntervalLog.sidecarURL(beside: mp4)
+        do {
+            try text.write(to: side, atomically: true, encoding: .utf8)
+            return "這次錄到 \(adLog.spans.count) 段廣告，時段寫在 \(side.lastPathComponent)"
+        } catch {
+            Log.error("job", "廣告時段檔寫入失敗: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     private func finalizeRecorderFile(_ j: JobViewModel) async {
         stopSnapshotTimer() // 收尾前先停計時器，晚到的快照不再評估
         // SCK 中斷等致命錯誤時盡力保檔
@@ -589,6 +695,7 @@ final class AppState: ObservableObject {
         if let saved = await rec.stop(finalFile: finalURL) {
             addHistory(saved, kind: .sidecar, title: j.title)
             j.trackB = .finished(saved)
+            if let note = writeAdSidecar(beside: saved) { j.infoMessage = note }
         }
         recorder = nil
         monitor.close()
@@ -772,6 +879,10 @@ final class AppState: ObservableObject {
         if mode != session.lastUi {
             session.lastUi = mode
             Log.info("job", "播放器快照 \(mode)")
+        }
+        if isRecording, let latest = session.latest, now - latest.receivedAt <= StreamEnd.staleSeconds,
+           let fileSec = job?.recordSeconds {
+            adLog.observe(ad: latest.ad, fileSec: Int(fileSec))
         }
         if let reason = decision.stopReason {
             stopSnapshotTimer()

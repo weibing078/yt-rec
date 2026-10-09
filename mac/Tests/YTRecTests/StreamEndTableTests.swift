@@ -14,6 +14,14 @@ final class StreamEndTableTests: XCTestCase {
                            extendedAdSeconds: ext, otherVideoStreak: streak, now: now)
     }
 
+    func testPreviewContentReadyNeedsFreshNonAdContent() {
+        let now: TimeInterval = 1000
+        XCTAssertTrue(StreamEnd.previewContentReady(snapshot: snap(ended: false, ad: false, content: true, id: "aaa", age: 0, now: now), now: now))
+        XCTAssertFalse(StreamEnd.previewContentReady(snapshot: snap(ended: false, ad: true, content: true, id: "aaa", age: 0, now: now), now: now))
+        XCTAssertFalse(StreamEnd.previewContentReady(snapshot: snap(ended: false, ad: false, content: true, id: "aaa", age: 6, now: now), now: now))
+        XCTAssertFalse(StreamEnd.previewContentReady(snapshot: nil, now: now))
+    }
+
     func testEndedStartsCountdown() {
         let d = eval(phase: .recording, anchor: "aaa", snap: snap(ended: true, ad: false, content: false, id: "aaa", age: 0), candidateAge: nil, ext: 0, streak: 0)
         XCTAssertNil(d.stopReason)

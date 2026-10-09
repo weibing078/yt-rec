@@ -135,7 +135,8 @@ final class InjectedJSSmokeTests: XCTestCase {
         XCTAssertFalse(js.contains("lcfPostEnded"))
         XCTAssertTrue(js.contains("'title:'"))                      // 標題回報
         XCTAssertTrue(js.contains("'dims:'"))                       // 來源尺寸回報（直式偵測靠它）
-        XCTAssertTrue(js.contains("ad-showing"))                    // 偵測廣告（沒買 Premium 也不錄到廣告）
+        XCTAssertTrue(js.contains("ad-showing"))                    // 偵測廣告；可略過就按略過，寫檔不暫停
+        XCTAssertTrue(js.contains("getAdState() === 1"))            // 沒標 class 時仍認播放器的廣告狀態
         XCTAssertTrue(js.contains("ytp-ad-skip-button"))            // 自動略過廣告
     }
     func testVisibilitySpoofKeepsCriticalLines() {

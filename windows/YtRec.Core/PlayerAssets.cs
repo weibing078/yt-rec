@@ -72,10 +72,16 @@ public static class PlayerAssets
               }
             } catch (e) {}
           }
-          // An ad is playing when YouTube tags the player with ad-showing / ad-interrupting.
+          // An ad is playing when the player is tagged ad-showing / ad-interrupting,
+          // or getAdState() is 1, or isLifaAdPlaying() is true. Content on 2026-10-09
+          // reported getAdState() === -1. ad-created is not an ad.
           function adShowing() {
             var p = player();
-            return !!(p && p.classList && (p.classList.contains('ad-showing') || p.classList.contains('ad-interrupting')));
+            if (!p) return false;
+            if (p.classList && (p.classList.contains('ad-showing') || p.classList.contains('ad-interrupting'))) return true;
+            try { if (p.getAdState && p.getAdState() === 1) return true; } catch (e) {}
+            try { if (p.isLifaAdPlaying && p.isLifaAdPlaying()) return true; } catch (e) {}
+            return false;
           }
           function currentVideoId() {
             try {

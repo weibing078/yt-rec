@@ -278,6 +278,8 @@ and **[PARITY]** for things the Windows port must replicate.
   clicks the skip control + mutes the ad + never reports an ad's geometry; the Windows writer waits for
   `contentReady` so a no-Premium pre-roll never lands in the file. Side-record only — the yt-dlp download
   path is ad-free anyway. Verified on Win11; backported to mac `playerTakeoverJS`.
+  Mid-roll ads stay in the file and are listed in `<mp4-name>.廣告時段.txt` (none written when
+  there is no ad). A file rebuilt by crash recovery does not get that txt.
 - Stream-end detection: relying on the player `ended` event is unreliable
   (YouTube may switch player state instead of firing `video.ended`); may need
   player-state polling.
