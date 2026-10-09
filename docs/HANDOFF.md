@@ -1,6 +1,6 @@
 # 交接
 
-更新日期：2026-10-09 12:52（UTC+8）
+更新日期：2026-10-09 13:40（UTC+8）
 交棒者：本 Cursor 對話
 掌棒：仍是本 Cursor 對話。使用者尚未把掌棒交給另一位 AI。本檔不授予修改權。
 
@@ -10,7 +10,7 @@
 - HEAD：`5c60c0fb0ea6057f4f42141c4dd8d46ad73880a5`（`5c60c0f`，`fix: debounce a video change and adopt an anchor when the URL has none`）
 - 遠端：`origin/fix/2026-10-improvements` 與此 HEAD 相同
 - PR：沒有
-- 保存：HEAD 已在 origin。第二波、第三波、官網文字、規則與本檔都還沒 commit，也沒 push
+- 保存：已推上 `origin/fix/2026-10-improvements`。修復是 `d1a80a9`，版本是 `26389d0`（v1.1.3）。GitHub Release：https://github.com/weibing078/yt-rec/releases/tag/v1.1.3 。Mac `YT-Rec.dmg` 已簽名、公證、裝訂。官網 `latest.json` 已是 1.1.3。v1.1.3 還沒有 `YT-Rec-Setup.exe`（建置機沒有 Inno Setup，下載頁回的是 HTML），所以上面的 Windows 下載網址目前是 404。
 
 ## 現況
 
