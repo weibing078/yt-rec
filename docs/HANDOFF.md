@@ -1,91 +1,86 @@
 # 交接
 
-更新日期：2026-10-09 13:40（UTC+8）
-交棒者：本 Cursor 對話
-掌棒：仍是本 Cursor 對話。使用者尚未把掌棒交給另一位 AI。本檔不授予修改權。
+更新日期：2026-10-09 18:40（UTC+8）
+交棒者：本 Cursor 對話（使用者說額度到了，結束工作）
+掌棒：沒有人。下一位要等使用者在對話裡指定。本檔不授予修改權。
 
 ## 位置
 
 - 分支：`fix/2026-10-improvements`
-- HEAD：`5c60c0fb0ea6057f4f42141c4dd8d46ad73880a5`（`5c60c0f`，`fix: debounce a video change and adopt an anchor when the URL has none`）
-- 遠端：`origin/fix/2026-10-improvements` 與此 HEAD 相同
-- PR：沒有
-- 保存：已推上 `origin/fix/2026-10-improvements`。修復是 `d1a80a9`，版本是 `26389d0`（v1.1.3）。GitHub Release：https://github.com/weibing078/yt-rec/releases/tag/v1.1.3 。Mac `YT-Rec.dmg` 已簽名、公證、裝訂。官網 `latest.json` 已是 1.1.3。v1.1.3 還沒有 `YT-Rec-Setup.exe`（建置機沒有 Inno Setup，下載頁回的是 HTML），所以上面的 Windows 下載網址目前是 404。
+- HEAD：本交接提交之前是 `40e4fa72e4c030862675c2aa6a6107308814b1ca`（`docs: record the v1.1.3 release and the missing Windows installer`）
+- 遠端：已推上 `origin/fix/2026-10-improvements`，與本機相同
+- PR：沒有。沒有合併到 `main`（使用者沒要求）
+- 提交：`d1a80a9` 修復、`26389d0` 發版 v1.1.3、`40e4fa7` 文件、本檔一筆交接
+- 工作樹：只有未追蹤的 `build/logs/`（驗證紀錄，不提交）
 
-## 現況
+## 發佈現況
 
-第一波（播放器每秒快照）已提交。其後的修復都在工作樹，沒有還原。
+使用者 2026-10-09 授權：commit、push、發版、部署官網、推送更新。
 
-已完成且有證據：
+- GitHub Release：https://github.com/weibing078/yt-rec/releases/tag/v1.1.3 （target 是 `fix/2026-10-improvements`）
+- Mac：`YT-Rec.dmg` 已上傳，Developer ID 簽名、公證、裝訂（公證設定檔名 `AutoSyncNotary`）
+- 官網：已用 wrangler 部署到 `ytrec` 專案 main。`https://ytrec.resonaframe.com/latest.json` 是 1.1.3
+- **Windows：沒完成。** `latest.json` 的 Windows 網址 `releases/latest/download/YT-Rec-Setup.exe` 目前回 404。舊版 Windows 使用者會被提示更新卻下載失敗，這是最優先要補的
 
-- Mac 正片閘門與 45 秒逾時放行。簽名過的 `mac/dist/YT Rec.app` 錄過 Big Buck Bunny 8.24 秒（1920×1080、AAC）與 Al Jazeera 約 60 秒。lofi 逾時後仍寫出幾乎沒有畫面的檔。這次打包有 Developer ID 簽名，沒有送公證。
-- Windows 裁切連續兩次相同；0 次畫面範圍則停，不錄整頁。lofi 日誌是「預覽沒有新畫面，先不要開錄」。
-- Windows 時長、720/1080、輸出資料夾、最近 5 筆會記住。進行中或尚未開播的下載會改走側錄並說明（`--check` 寫出那句話）。舊資料夾未收工錄影有修回一支 12 秒檔。
-- 擷取尺寸一變會停並留下部分檔（120 幀）。中間有一次新 dll 被程式碼完整性原則擋住（`0x800711C7`），後來的重編可以載入。不要關掉該原則。
-- Windows x264：crf 23；720p 的 SEI 是 `vbv_maxrate=6000`、`vbv_bufsize=12000`；1080p 是 12000／24000。沒有加 `-g 60`。
-- 更新連結網域限制有兩邊單元測試。按鈕沒有在畫面上點過。
-- 官網 `web/index.html`、`llms.txt`、`sitemap.xml` 已對照產品事實。本機 `http://127.0.0.1:8011/` 看過。沒有部署。沒有 `web/og.png`。
-- 測試：Mac `swift test` 195 通過、1 略過、0 失敗（2026-10-09 12:32）。Windows Core `dotnet test` 252 通過、0 失敗（同日 12:32，機器 `weibi@100.79.2.61`）。
+## 唯一未完成：把 Windows 安裝檔掛上 v1.1.3
 
-還沒證明：
+安裝檔已經在建置機做好，只差搬上 GitHub。
 
-- 從正在播的廣告寫出 `.廣告時段.txt`。格式檔 `build/logs/goal-win-sidecar.txt` 的時間是檢查程式餵的。瀏覽器與實錄的正片 `getAdState()` 都是 -1。
-- Windows「下載」與「下載更新」沒有在畫面上點過。
-- 這次 Mac 打包沒有公證。官網沒有部署。工作樹沒有 commit。
+- 建置機：`weibi@100.79.2.61`，金鑰 `~/.ssh/wei_win_ed25519`，遠端殼層是 PowerShell
+- 安裝檔：`C:\Users\weibi\yt-rec-113\windows\dist\YT-Rec-Setup.exe`，110275288 bytes。Inno Setup 6.7.3 已裝（`C:\Program Files (x86)\Inno Setup 6\ISCC.exe`），繁中語系檔缺，略過
+- 已切片：`C:\Users\weibi\ytrec-setup-1m\p000` 到 `p105`，每片 1 MiB，最後一片 `p105` 174808 bytes
+- Mac 已收到：`/tmp/ytrec-1m` 45／106 片（`p000`–`p043` 等）。`/tmp` 重開機會清掉
+- 大檔 scp 從建置機拉回時常被重置或逾時，所以才改切片
 
-## 完成目標
+三種補法，擇一：
 
-目標：這條分支上的修復可以被保存、被核對，而且文件講的是 2026-10-09 的工作樹，不是六月快照。
+1. 繼續逐片 scp 缺的片到 `/tmp/ytrec-1m`，每片核對大小。全齊後依序 `cat p000 … p105 > /tmp/YT-Rec-Setup.exe`，確認 110275288 bytes，再 `gh release upload v1.1.3 /tmp/YT-Rec-Setup.exe --clobber`。
+2. 請使用者在 Windows 機上用瀏覽器登入 GitHub，把安裝檔手動上傳到 v1.1.3。
+3. 在 Windows 機上裝 gh，由使用者自己互動登入後上傳。
 
-完成要同時為真：
+**不要**把本機的 GitHub token 經 SSH 傳給建置機（自動審查已擋過一次，資安紅線）。
 
-1. 工作樹的行為與 `shared/spec/behavior-spec.md`、`parity-matrix.md`、`docs/PRD.md` 現況段、`docs/STATUS.md` 現況段一致。
-2. Mac `swift test` 與 Windows Core `dotnet test` 維持全綠。Windows App 能編譯。
-3. 已有的實錄與本機官網畫面證據還在，不把沒做過的講成做過。
-4. 下面三件待拍板有答案之後，才做對應的那一步。沒有答案就不做。
+上傳後核對：`curl -sI https://github.com/weibing078/yt-rec/releases/latest/download/YT-Rec-Setup.exe` 應轉址到檔案而不是 404。安裝檔本身沒有在乾淨 Windows 上安裝試跑過。
 
-## 步驟
+## 已完成且有證據
 
-已做，不要重跑來湊證據：
+- Mac 正片閘門與 45 秒逾時放行；簽名的 App 實錄 Big Buck Bunny（1920×1080、AAC）與 Al Jazeera 約 60 秒。
+- 廣告偵測加 `getAdState() === 1` 與 `isLifaAdPlaying()`，兩平台都有單元測試。
+- Windows 裁切連續兩次相同才用；0 次則停並顯示「預覽沒有新畫面，先不要開錄」。
+- Windows 時長、720／1080、輸出資料夾、最近 5 筆會記住；進行中直播按下載改走側錄並說明；舊資料夾未收工錄影能修回。
+- 擷取尺寸變化會停並留下部分檔。
+- Windows x264：crf 23；720p 6M／12M，1080p 12M／24M。沒加 `-g 60`。
+- 更新連結網域限制：兩邊單元測試。
+- 兩平台都有無頭 `--autorecord` 參數供實錄驗證。
+- 測試：Mac `swift test` 195 通過、1 略過、0 失敗；Windows Core `dotnet test` 252 通過（建置機）。Windows App 能編譯、能載入。
 
-1. 第一波快照評估（已在 HEAD）。
-2. 第二波與第三波程式、測試、實錄、官網文字。
+## 還沒證明
 
-待拍板（問過使用者，2026-10-09 12:52 還沒有答案）：
-
-1. 要不要把工作樹 commit。沒有明確說要，就不 commit、不 push、不開 PR。
-2. 「從正在播的廣告寫出時段檔」要不要列為完成門檻。這台現在播片不會進廣告。若不列，現有格式檔與「沒廣告不寫檔」就算這項的證據。
-3. 要不要公證這次的 Mac App，以及要不要部署官網。兩件都要另一次批准。部署與發版、改版本號仍然分開。
-
-不需拍板、文件已寫明、先不做的：
-
-- 不加 `-g 60`。
-- 不關掉 Windows 程式碼完整性原則。
-- 不改回 Windows 全螢幕填滿。
-- 不把「同一支 id 從頭重播不收工」「沒有快照就不因結束收工」「收尾競態」「Windows App 沒有 log」當成這輪必須修完的項目。
+- 從真的在播的廣告寫出 `.廣告時段.txt`（這幾台播片都沒進廣告）。使用者說不列為門檻。
+- Windows「下載」「下載更新」按鈕沒有在畫面上點過。
+- Windows 安裝檔沒有實機安裝試跑。
+- 沒有 `web/og.png`。
 
 ## 已知問題
 
-- `docs/STATUS.md` 文首現況是 2026-10-09。下文六月段落是舊快照。
-- Windows 若完全沒有播放器快照，不會因「結束」自動收工。同一支影片 id 從頭重播不會收工。收尾完成瞬間再按停止有競態。Windows App 沒有自己的 log。
-- 這台 Windows 的 VS Build Tools 沒有 PRI 工作 DLL。App 用 `EnableMsixTooling=true` 與 `EnableDefaultPriItems=false` 編成。CI 仍走 VS `msbuild`，不加這兩個屬性。
+- Windows 完全沒有播放器快照時，不會因「結束」自動收工。同一支 id 從頭重播不收工。收尾瞬間再按停止有競態。Windows App 沒有自己的 log。
+- 建置機的 Smart App Control／程式碼完整性偶爾擋新編的未簽名 DLL，重編通常能載入。不要關掉該原則。
+- 建置機 VS Build Tools 的 MSBuild 解不到 `Microsoft.NET.Sdk`。用使用者目錄 .NET 8 SDK（`C:\Users\weibi\.dotnet`，要設 `DOTNET_ROOT`）的 `dotnet msbuild`，App 加 `EnableMsixTooling=true`、`EnableDefaultPriItems=false`。CI 不加這兩個屬性。
+- 本機 zsh 會展開 `$`，遠端 PowerShell 指令請先寫成 `.ps1` 再 scp 過去執行。
+- 要開 GUI 的遠端測試用互動式排程工作（名稱 `YtRecQA`）。
 
-## 工作樹
+## 已拍板，不要重走
 
-全部未提交修改都屬於本 Cursor 對話，疊在 HEAD 之上。`build/` 只放驗證紀錄，不提交。
+- 中插廣告照錄，只寫 `.廣告時段.txt`。不黑畫面、不自動剪、不暫停寫檔。
+- 進行中或未開播按下載改走側錄並說明。只下載已結束的影片。
+- 播放器結束用每秒快照，不改回單次 ended 事件。
+- Windows 不改回全螢幕填滿；`PlayerWindow` 置頂不能拿掉。
 
 ## 驗證
 
 | 指令 | exit | 證據 |
 |---|---|---|
-| `mac/` 裡 `swift test` | 0 | 2026-10-09 12:32：195 通過、1 略過、0 失敗 |
-| `dotnet test windows/YtRec.Core.Tests/YtRec.Core.Tests.csproj` | 0 | 2026-10-09 12:32，`weibi@100.79.2.61`：252 通過、0 失敗 |
-| Windows App Release x64，`EnableMsixTooling=true`、`EnableDefaultPriItems=false` | 0 | 同日稍後重編後，`--recover` 寫出 count=0，程式有載入 |
-
-## 已拍板與不要重走
-
-- 中插廣告照錄，只寫 `.廣告時段.txt`。不做黑畫面、自動剪掉、暫停寫檔。可略過的廣告仍按略過並靜音。
-- 進行中或尚未開播按下載：改走側錄並說明。Mac 的 always 下載模式維持 Mac 才有。只下載已結束的影片。
-- 播放器結束用每秒快照。不要改回單次 ended 事件。
-- Windows 全螢幕填滿會錄到黑畫面。`PlayerWindow` 置頂不能拿掉。
-- 這台 Windows 用使用者目錄的 .NET 8 SDK。遠端預設殼層是 PowerShell。本機 zsh 會展開 `$`。
+| `mac/` 裡 `swift test` | 0 | 2026-10-09：195 通過、1 略過、0 失敗 |
+| `dotnet test windows/YtRec.Core.Tests/YtRec.Core.Tests.csproj` | 0 | 2026-10-09，`weibi@100.79.2.61`：252 通過 |
+| Windows 安裝檔 ISCC 編譯 | 0 | 110275288 bytes，未上傳、未安裝試跑 |
+| `curl -sI …/v1.1.3/YT-Rec-Setup.exe` | — | 2026-10-09 18:35：HTTP 404 |
